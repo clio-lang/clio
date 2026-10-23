@@ -105,6 +105,18 @@ with tempfile.TemporaryDirectory(dir=destination) as temporary:
     assert len(alias_changes) == 1 and alias_changes[0]['textDocument']['uri'] == main.as_uri()
     client.change(main, good, 6)
     client.barrier()
+    # Structural queries retain scoped package versions and never edit the cache.
+    unfinished = good.replace('  result\n', '  compute(1+resSuffix\n')
+    client.change(main, unfinished, 7)
+    assert any(d['code']=='L005' for d in publications(client.barrier())[main.as_uri()]['diagnostics'])
+    cursor=unfinished.splitlines()[4].index('resSuffix')+3
+    names=client.completion(main,4,cursor)['result']['items']
+    assert [(item['label'],item['kind']) for item in names]==[('result',6)],names
+    hint=client.signature(main,4,cursor)['result']
+    assert hint and hint['activeParameter']==0 and 'value: int64' in hint['signatures'][0]['label'],hint
+    assert not client.barrier(), 'recovery query published diagnostics'
+    client.change(main,good,8)
+    assert publications(client.barrier())[main.as_uri()]['diagnostics']==[]
     client.change(wrapper_source, library_text.replace('measure(value)', 'measure(1)'), 2)
     events = client.barrier()
     assert any('read-only' in str(event) for event in events), events

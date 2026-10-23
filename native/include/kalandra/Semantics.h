@@ -320,7 +320,7 @@ struct TypedRecord {
   SourceSpan declaration;
   std::vector<TypedRecordField> fields;
   std::vector<TypedVariant> variants = {};
-  bool error = false; // Only declared errors may appear in expected-error channels.
+  bool error = false;           // Only declared errors may appear in expected-error channels.
   bool taskErrorFamily = false; // Private canonical identity for built-in TaskError in unions.
   std::vector<std::size_t> errorMembers =
       {}; // Canonical original families for a transparent union.
@@ -408,7 +408,17 @@ struct CheckResult {
 [[nodiscard]] bool hasPlacement(const TypedModule &module);
 // Editor-only scope/member snapshot. Names are captured at the queried name;
 // no partial typed IR or inferred type information escapes a failed check.
-enum class ScopeNameKind { Variable, Parameter, Function, Type, Field, EnumCase, File, Folder };
+enum class ScopeNameKind {
+  Variable,
+  Parameter,
+  Function,
+  Type,
+  Field,
+  EnumCase,
+  File,
+  Folder,
+  Keyword
+};
 struct ScopeName {
   std::string name;
   ScopeNameKind kind;
@@ -437,13 +447,16 @@ struct CallableSignatureQuery {
   std::optional<ExprId> argumentReceiver = {};
   // Earlier editing slot, counting an implicit pipeline argument when present.
   std::optional<std::size_t> argumentIndex = {};
+  // Validate a compound edited argument up to a selected unresolved name/member hole.
+  std::optional<ExprId> editingExpression = {};
+  std::optional<SourceSpan> editingSite = {};
 };
 struct CheckOptions {
   // Build placement-aware IR without probing hardware or selecting a backend.
   // The ordinary CPU entry keeps rejecting placement syntax by default.
   bool placement = false;
-  ScopeCompletion *completion = nullptr; // Caller-owned, optional editor query.
-  CallableSignatureQuery *signature = nullptr; // Missing-argument guidance only.
+  ScopeCompletion *completion = nullptr;       // Caller-owned, optional editor query.
+  CallableSignatureQuery *signature = nullptr; // Checked callable guidance only.
 };
 [[nodiscard]] CheckResult check(ParseResult syntax, SemanticLimits limits = {},
                                 CheckOptions options = {});

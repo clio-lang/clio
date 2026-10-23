@@ -69,7 +69,8 @@ int main() {
     require(!query(add + "fn main():\n  missing\n  add(|1,2)\n"), "invalid graph fails closed");
     result = query("fn main():\n  length(|[1,2])\n");
     require(result && result->label == "fn length(input: [int64]) -> int64" &&
-                result->activeParameter == 0, "checked array length signature");
+                result->activeParameter == 0,
+            "checked array length signature");
     result = query("fn make()->fn(int)->int:\n  fn(n:int):n\nfn main():\n  make()(|1)\n");
     require(result && result->label == "fn(int64) -> int64" && result->activeParameter == 0,
             "factory result signature rather than factory signature");
@@ -137,8 +138,8 @@ int main() {
     require(!recover(add + "fn main():\n  add(\"bad\",|\n"),
             "invalid prefix argument type blocks snapshot");
     require(!recover(add + "fn main():\n  add(missing,|\n"), "invalid prefix name blocks snapshot");
-    require(!recover(add + "fn broken()->int:\n  missing\nfn main():\n  add(1,|\n"),
-            "unrelated graph errors block snapshots");
+    require(bool(recover(add + "fn broken()->int:\n  missing\nfn main():\n  add(1,|\n")),
+            "independent broken body does not erase checked signature");
     require(!recover("fn broken(n:int)->int:\n  missing\nfn main():\n  broken(|\n"),
             "invalid target body blocks named signature snapshot");
     result = recover("type Point:\n  x:int\nfn inspect(point:Point,n:int)->int:\n  point.x+n\n"
@@ -208,7 +209,8 @@ int main() {
     require(!query(add + "fn main():\n  add(missing, va|Suffix)\n"),
             "earlier invalid argument still blocks guidance");
     result = query(add + "fn main():\n  add(va|Suffix, 2)\n");
-    require(result && result->activeParameter == 0, "earlier partial argument retains parameter guidance");
+    require(result && result->activeParameter == 0,
+            "earlier partial argument retains parameter guidance");
     require(!query(add + "fn main():\n  add(1, 2 + va|Suffix)\n"),
             "partial expression is not a bare-name editing hole");
     const std::string records = "type Reading:\n  value:int\n"
@@ -241,7 +243,8 @@ int main() {
             "invalid earlier argument blocks field guidance");
     result = query(add + records +
                    "fn main():\n  reading=Reading {value:2}\n  add(reading.va|Suffix, 1)\n");
-    require(result && result->activeParameter == 0, "earlier field argument receives checked guidance");
+    require(result && result->activeParameter == 0,
+            "earlier field argument receives checked guidance");
     require(
         !query(add + records +
                "fn main():\n  reading=Reading {value:2}\n  add(1, reading.missing.va|Suffix)\n"),
@@ -286,16 +289,17 @@ int main() {
         recover(add + records + "fn main():\n  reading=Reading {value:2}\n  add(reading.|, 1)\n");
     require(result && result->activeParameter == 0,
             "earlier empty field receives checked guidance");
-    require(!recover(add + records +
-                     "fn main():\n  reading=Reading {value:2}\n  add(1, reading.|unknown)\n"),
-            "existing suffix not replaced with a field probe");
-    require(!recover(add + records +
-                     "fn main():\n  reading=Reading {value:2}\n  add(1, reading.| + 2)\n"),
-            "compound empty field not repaired");
-    require(!recover(add + records +
+    require(bool(recover(add + records +
+                         "fn main():\n  reading=Reading {value:2}\n  add(1, reading.|unknown)\n")),
+            "checked field prefix retains original suffix");
+    require(bool(recover(add + records +
+                         "fn main():\n  reading=Reading {value:2}\n  add(1, reading.| + 2)\n")),
+            "compound empty field receives checked guidance");
+    require(
+        bool(recover(add + records +
                      "fn main():\n  reading=Reading {value:2}\n  add(1, reading.|)\nfn later():\n  "
-                     "missing\n"),
-            "later graph errors still suppress empty-field guidance");
+                     "missing\n")),
+        "independent later errors preserve empty-field guidance");
     require(!recover(add + "fn main():\n  add(1, \"reading.|\"\n"),
             "string content is not a field slot");
     const std::string collision = "type Probe:\n  __kalandra_signature_field:int\n"
@@ -303,8 +307,8 @@ int main() {
     result = recover(add + collision + "  add(1, reading.|)\n");
     require(result && result->activeParameter == 1,
             "probe-name collision still uses receiver projection");
-    require(!recover(add + collision + "  add(1, (reading.|))\n"),
-            "grouped probe cannot become a supplied field value");
+    require(bool(recover(add + collision + "  add(1, (reading.|))\n")),
+            "grouped field query captures a checked signature without supplying a value");
     require(!recover(add + records +
                      "fn main():\n  reading=Reading {value:2}\n  ((((((((add(1, reading.|\n"),
             "empty-field delimiter recovery keeps eight-parenthesis limit");
@@ -323,11 +327,13 @@ int main() {
             "String byte length signature");
     result = query("fn main():\n  shape(|tensor([1,2]))\n");
     require(result && result->label.find("fn shape(input: Tensor[int64, 2])") == 0 &&
-                result->parameters.size() == 1, "tensor shape specialization");
+                result->parameters.size() == 1,
+            "tensor shape specialization");
     result = query("fn main():\n  slice([1,2,3],0,|2)\n");
-    require(result && result->label ==
-                "fn slice(input: [int64], start: int64, end: int64) -> [int64]" &&
-                result->activeParameter == 2, "array slice checked bounds parameters");
+    require(result &&
+                result->label == "fn slice(input: [int64], start: int64, end: int64) -> [int64]" &&
+                result->activeParameter == 2,
+            "array slice checked bounds parameters");
     result = query("fn main():\n  \"hello\" -> slice(0,|2)\n");
     require(result &&
                 result->label == "fn slice(input: String, start: int64, end: int64) -> String" &&
@@ -342,7 +348,8 @@ int main() {
             "String array concat signature");
     require(!query("fn main():\n  concat(\"a\",|\"b\")\n"),
             "unsupported scalar String concat has no guidance");
-    result = query("type Box:\n  value:int\nfn main():\n  concat([Box {value:1}],|[Box {value:2}])\n");
+    result =
+        query("type Box:\n  value:int\nfn main():\n  concat([Box {value:1}],|[Box {value:2}])\n");
     require(result && result->label == "fn concat(left: [Box], right: [Box]) -> [Box]",
             "nominal array context remains available to the type printer");
     result = recover("fn main():\n  values=[1,2]\n  length(values|\n");
@@ -363,10 +370,12 @@ int main() {
             "lexical callable shadow is not a builtin");
     result = recover("fn main():\n  concat([1,2],|\n");
     require(result && result->label == "fn concat(left: [int64], right: [int64]) -> [int64]" &&
-                result->activeParameter == 1, "missing concat operand from first array");
+                result->activeParameter == 1,
+            "missing concat operand from first array");
     result = query("fn main():\n  [true] -> concat(|)\n");
     require(result && result->label == "fn concat(left: [Bool], right: [Bool]) -> [Bool]" &&
-                result->activeParameter == 1, "piped missing concat operand");
+                result->activeParameter == 1,
+            "piped missing concat operand");
     result = recover("fn main():\n  concat([\"a\"], ri|Suffix)\n");
     require(result && result->label == "fn concat(left: [String], right: [String]) -> [String]",
             "partly typed right operand uses first array");
@@ -377,15 +386,17 @@ int main() {
     require(result && result->label == "fn concat(left: [Box], right: [Box]) -> [Box]",
             "nominal array snapshot context");
     result = query("fn main():\n  callbacks=[fn(v:int):v*2]\n  concat(callbacks,|)\n");
-    require(result && result->label ==
-                "fn concat(left: [fn(int64) -> int64], right: [fn(int64) -> int64]) -> ([fn(int64) -> int64])",
+    require(result && result->label == "fn concat(left: [fn(int64) -> int64], right: [fn(int64) -> "
+                                       "int64]) -> ([fn(int64) -> int64])",
             "callable array contract survives the snapshot");
-    result = recover("type Box:\n  value:int\nfn main():\n  box=Box {value:1}\n  concat([1], box.|)\n");
+    result =
+        recover("type Box:\n  value:int\nfn main():\n  box=Box {value:1}\n  concat([1], box.|)\n");
     require(result && result->activeParameter == 1, "missing field still checks its receiver");
     require(!recover("fn main():\n  concat([1], missing.|)\n"),
             "unknown projected field receiver prevents a snapshot");
     require(!query("fn main():\n  concat(|)\n"), "no first array means no element contract");
-    require(!query("fn main():\n  concat([],|)\n"), "uncontextual empty array has no element contract");
+    require(!query("fn main():\n  concat([],|)\n"),
+            "uncontextual empty array has no element contract");
     require(!query("fn main():\n  concat(42,|)\n"), "scalar does not establish array contract");
     require(!query("fn main():\n  missing\n  concat([1],|)\n"),
             "prior errors prevent concat snapshots");
@@ -408,16 +419,18 @@ int main() {
     result = query("fn main():\n  int(|float32(1))\n");
     require(result && result->label == "fn int(input: float32) -> int64", "int conversion alias");
     result = query("fn main():\n  int16(|tensor([1,2],[1,2]))\n");
-    require(result && result->label ==
-                "fn int16(input: Tensor[int64, 1, 2]) -> Tensor[int16, 1, 2]",
+    require(result &&
+                result->label == "fn int16(input: Tensor[int64, 1, 2]) -> Tensor[int16, 1, 2]",
             "tensor conversion retains rank and fixed extents");
-    result = query("fn convert(values:Tensor[float32,?,2]):\n  float64(va|lues)\nfn main():\n  0\n");
+    result =
+        query("fn convert(values:Tensor[float32,?,2]):\n  float64(va|lues)\nfn main():\n  0\n");
     require(result && result->label ==
-                "fn float64(input: Tensor[float32, ?, 2]) -> Tensor[float64, ?, 2]",
+                          "fn float64(input: Tensor[float32, ?, 2]) -> Tensor[float64, ?, 2]",
             "dynamic conversion shapes hide inference identities");
     result = query("fn main():\n  1 -> float32(|)\n");
     require(result && result->label == "fn float32(input: int64) -> float32" &&
-                result->activeParameter == 0, "piped scalar conversion signature");
+                result->activeParameter == 0,
+            "piped scalar conversion signature");
     result = recover("fn main():\n  value=1\n  uint8(value|\n");
     require(result && result->label == "fn uint8(input: int64) -> uint8",
             "conversion guidance after bounded delimiter repair");
@@ -429,31 +442,35 @@ int main() {
     require(!query("fn main():\n  int64(|true)\n"), "Bool is not a numeric source");
     require(!query("fn main():\n  float32(|)\n"), "missing conversion source has no guessed type");
     require(!query("fn main():\n  float32(|1,2)\n"), "extra conversion arguments have no hint");
-    require(!query("fn main():\n  float32(|1)\n  missing\n"), "failed graphs suppress numeric hints");
+    require(!query("fn main():\n  float32(|1)\n  missing\n"),
+            "failed graphs suppress numeric hints");
     for (const auto &numeric : numericTypes) {
       const auto name = std::string(numeric.name);
       const auto matrix = "tensor([" + name + "(1)],[1,1])";
       result = query("fn main():\n  reduceSum(|" + matrix + ")\n");
-      require(result && result->label ==
-                  "fn reduceSum(input: Tensor[" + name + ", 1, 1]) -> " + name,
+      require(result &&
+                  result->label == "fn reduceSum(input: Tensor[" + name + ", 1, 1]) -> " + name,
               "reduction signature for " + name);
       result = query("fn main():\n  matmul(" + matrix + ",|" + matrix + ")\n");
-      require(result && result->label == "fn matmul(left: Tensor[" + name +
-                  ", 1, 1], right: Tensor[" + name + ", 1, 1]) -> Tensor[" + name + ", 1, 1]" &&
-                  result->activeParameter == 1, "matrix signature for " + name);
+      require(result &&
+                  result->label == "fn matmul(left: Tensor[" + name + ", 1, 1], right: Tensor[" +
+                                       name + ", 1, 1]) -> Tensor[" + name + ", 1, 1]" &&
+                  result->activeParameter == 1,
+              "matrix signature for " + name);
       result = query("fn main():\n  array(|" + matrix + ")\n");
-      require(result && result->label ==
-                  "fn array(input: Tensor[" + name + ", 1, 1]) -> [" + name + "]",
+      require(result &&
+                  result->label == "fn array(input: Tensor[" + name + ", 1, 1]) -> [" + name + "]",
               "tensor flattening signature for " + name);
     }
     result = query("fn multiply(a:Tensor[float32,?,3],b:Tensor[float32,3,?]):\n"
                    "  matmul(a,|b)\nfn main():\n  0\n");
-    require(result && result->label ==
-                "fn matmul(left: Tensor[float32, ?, 3], right: Tensor[float32, 3, ?]) -> Tensor[float32, ?, ?]",
+    require(result && result->label == "fn matmul(left: Tensor[float32, ?, 3], right: "
+                                       "Tensor[float32, 3, ?]) -> Tensor[float32, ?, ?]",
             "dynamic matrix result derives outer axes");
     result = query("fn main():\n  tensor([1,2],[1,2]) -> matmul(|tensor([3,4],[2,1]))\n");
-    require(result && result->activeParameter == 1 && result->label ==
-                "fn matmul(left: Tensor[int64, 1, 2], right: Tensor[int64, 2, 1]) -> Tensor[int64, 1, 1]",
+    require(result && result->activeParameter == 1 &&
+                result->label == "fn matmul(left: Tensor[int64, 1, 2], right: Tensor[int64, 2, 1]) "
+                                 "-> Tensor[int64, 1, 1]",
             "piped matrix call tracks explicit right operand");
     result = query("fn main():\n  reduceSum(|tensor([7],[]))\n");
     require(result && result->label == "fn reduceSum(input: Tensor[int64]) -> int64",
@@ -485,7 +502,8 @@ int main() {
     require(result && result->label == mapLabel, "inferred anonymous map signature");
     result = query("fn main():\n  offset=3\n  map([1,2],|fn(v):v+offset)\n");
     require(result && result->label == mapLabel, "inline captures stay out of public callback");
-    result = query("fn main():\n  offset=3\n  callback=fn(v:int):v+offset\n  map([1,2],|callback)\n");
+    result =
+        query("fn main():\n  offset=3\n  callback=fn(v:int):v+offset\n  map([1,2],|callback)\n");
     require(result && result->label == mapLabel, "retained function wrapper target stays hidden");
     result = query("fn main():\n  callbacks=[fn(v:int):v*2]\n  map([1,2],|callbacks[0])\n");
     require(result && result->label == mapLabel, "indexed callback retains public signature");
@@ -493,25 +511,28 @@ int main() {
     require(result && result->label == mapLabel && result->activeParameter == 1,
             "piped map selects explicit callback");
     result = query("fn main():\n  map([1,2],|fn(v):v>0)\n");
-    require(result && result->label == "fn map(input: [int64], callback: fn(int64) -> Bool) -> [Bool]",
+    require(result &&
+                result->label == "fn map(input: [int64], callback: fn(int64) -> Bool) -> [Bool]",
             "map result element differs from input");
     result = query("type Box:\n  value:int\nfn main():\n  map([Box {value:2}],|fn(v):v.value)\n");
-    require(result && result->label == "fn map(input: [Box], callback: fn(Box) -> int64) -> [int64]",
+    require(result &&
+                result->label == "fn map(input: [Box], callback: fn(Box) -> int64) -> [int64]",
             "nominal callback input context");
     for (const auto &numeric : numericTypes) {
       const auto name = std::string(numeric.name);
       result = query("fn main():\n  map([" + name + "(1)],|fn(v):v)\n");
       require(result && result->label == "fn map(input: [" + name + "], callback: fn(" + name +
-                  ") -> " + name + ") -> [" + name + "]", "map element width " + name);
+                                             ") -> " + name + ") -> [" + name + "]",
+              "map element width " + name);
     }
     result = query("fn main()->[int] ! TaskError:\n  try parallelMap([1,2],|fn(v):v*2)\n");
-    require(result && result->label ==
-                "fn parallelMap(input: [int64], callback: fn(int64) -> int64) -> [int64] ! TaskError",
+    require(result && result->label == "fn parallelMap(input: [int64], callback: fn(int64) -> "
+                                       "int64) -> [int64] ! TaskError",
             "parallel map exposes scheduling error channel only on outer result");
     result = query("error Bad:\n  Failed\nfn checked(v:int)->int ! Bad:\n  v\n"
                    "fn main()->[int] ! (Bad | TaskError):\n  try parallelMap([1,2],|checked)\n");
-    require(result && result->label ==
-                "fn parallelMap(input: [int64], callback: fn(int64) -> int64 ! Bad) -> [int64] ! Bad | TaskError",
+    require(result && result->label == "fn parallelMap(input: [int64], callback: fn(int64) -> "
+                                       "int64 ! Bad) -> [int64] ! Bad | TaskError",
             "callback application errors remain separate from task errors");
     result = recover("fn main():\n  map([1,2],fn(v:int):v*2|\n");
     require(result && result->label == mapLabel, "complete callback after bounded recovery");
@@ -519,47 +540,51 @@ int main() {
     require(result && result->label == "fn map(int64) -> int64", "same-spelled map binding");
     require(!query("fn main():\n  map([1],|)\n"), "missing callback has no guessed signature");
     require(!query("fn main():\n  map([1],|fn(v:int,w:int):v+w)\n"), "invalid callback arity");
-    require(!query("fn main():\n  parallelMap([1],|fn(v:int):v*2)\n"), "unhandled task errors block hints");
+    require(!query("fn main():\n  parallelMap([1],|fn(v:int):v*2)\n"),
+            "unhandled task errors block hints");
     require(!query("fn main():\n  map([1],|fn(v:String):v)\n"), "incompatible map callback input");
     CheckOptions placement;
     placement.placement = true;
-    const std::string transferStart =
-        "fn main()->int ! TaskError:\n  try parallel:\n"
-        "    values=tensor([1,2])\n";
+    const std::string transferStart = "fn main()->int ! TaskError:\n  try parallel:\n"
+                                      "    values=tensor([1,2])\n";
     const std::string transferEnd =
         "\n    host=try await transfer(resident,devices.cpu())\n    reduceSum(host)\n";
-    result = query(transferStart +
-                       "    resident=try await transfer(values,|devices.gpu(1))" + transferEnd,
+    result = query(transferStart + "    resident=try await transfer(values,|devices.gpu(1))" +
+                       transferEnd,
                    placement);
-    require(result && result->label ==
-                "fn transfer(input: Tensor[int64, 2], target: Device[gpu:1]) -> task<Tensor[int64, 2] on gpu:1>" &&
+    require(result &&
+                result->label == "fn transfer(input: Tensor[int64, 2], target: Device[gpu:1]) -> "
+                                 "task<Tensor[int64, 2] on gpu:1>" &&
                 result->activeParameter == 1 && result->parameters.size() == 2,
             "transfer exposes checked shape, exact device and task result");
-    result = query(transferStart +
-                       "    resident=try await (values -> transfer(|devices.gpu(1)))" + transferEnd,
+    result = query(transferStart + "    resident=try await (values -> transfer(|devices.gpu(1)))" +
+                       transferEnd,
                    placement);
     require(result && result->activeParameter == 1 &&
                 result->parameters[0] == "input: Tensor[int64, 2]",
             "piped transfer selects device argument");
-    result = query(transferStart +
-                       "    resident=try await transfer(values,devices.gpu(1))\n"
-                       "    host=try await transfer(resident,|devices.cpu())\n    reduceSum(host)\n",
-                   placement);
-    require(result && result->label ==
-                "fn transfer(input: Tensor[int64, 2] on gpu:1, target: Device[cpu]) -> task<Tensor[int64, 2]>",
+    result =
+        query(transferStart +
+                  "    resident=try await transfer(values,devices.gpu(1))\n"
+                  "    host=try await transfer(resident,|devices.cpu())\n    reduceSum(host)\n",
+              placement);
+    require(result && result->label == "fn transfer(input: Tensor[int64, 2] on gpu:1, target: "
+                                       "Device[cpu]) -> task<Tensor[int64, 2]>",
             "return transfer preserves input residency and CPU result");
     result = query("fn move(values:Tensor[float32,?,2])->int ! TaskError:\n  try parallel:\n"
                    "    resident=try await transfer(values,|devices.gpu())\n"
                    "    host=try await transfer(resident,devices.cpu())\n    0\nfn main():\n  0\n",
                    placement);
-    require(result && result->label ==
-                "fn transfer(input: Tensor[float32, ?, 2], target: Device[gpu:0]) -> task<Tensor[float32, ?, 2] on gpu:0>",
+    require(result && result->label == "fn transfer(input: Tensor[float32, ?, 2], target: "
+                                       "Device[gpu:0]) -> task<Tensor[float32, ?, 2] on gpu:0>",
             "dynamic transfer shapes hide private extent identities");
     require(!query("fn main():\n  transfer(tensor([1]),|devices.gpu())\n", placement),
             "transfer outside an owning group cannot offer a signature");
-    require(!query(transferStart + "    resident=try await transfer(values,|1)" + transferEnd, placement),
+    require(!query(transferStart + "    resident=try await transfer(values,|1)" + transferEnd,
+                   placement),
             "invalid transfer target has no guessed signature");
-    require(!query(transferStart + "    resident=try await transfer(values,|devices.gpu(1))" + transferEnd),
+    require(!query(transferStart + "    resident=try await transfer(values,|devices.gpu(1))" +
+                   transferEnd),
             "placement-disabled transfer has no builtin signature");
     result = query("fn transfer(value:int):\n  value+1\nfn main():\n  transfer(|2)\n");
     require(result && result->label == "fn transfer(value: int64) -> int64",
@@ -599,7 +624,8 @@ int main() {
                 result->activeParameter == 1,
             "final name suffix receives validated callee snapshot before EOF closure");
     result = recover(add + "fn main():\n  value=2\n  callback=add\n  callback(1,va|Suffix\n");
-    require(result && result->label == "fn callback(int64, int64) -> int64" && result->activeParameter == 1,
+    require(result && result->label == "fn callback(int64, int64) -> int64" &&
+                result->activeParameter == 1,
             "function-value callee snapshot survives final argument suffix");
     result = recover(add + "fn main():\n  callbacks=[add]\n  1 -> callbacks[0](va|Suffix\n");
     require(result && result->activeParameter == 1 && result->parameters.size() == 2,
@@ -623,8 +649,8 @@ int main() {
     result = recover(add + "fn main():\n  add(va|Suffix,2\n");
     require(result && result->activeParameter == 0,
             "earlier argument suffix receives EOF signature repair");
-    require(!recover(add + "fn main():\n  value=2\n  add(1,value+va|Suffix\n"),
-            "compound final argument does not gain signature repair");
+    require(bool(recover(add + "fn main():\n  value=2\n  add(1,value+va|Suffix\n")),
+            "compound final argument receives checked signature guidance");
     require(!recover(add + "fn main():\n  add(1,[va|Suffix\n"),
             "open arrays are not repaired for signature suffix queries");
     require(!recover(add + "fn main():\n  ((((((((add(1,va|Suffix\n"),
@@ -698,10 +724,10 @@ int main() {
             "unknown receiver suppresses empty first slot");
     require(!recover(emptyPrefix + "  triple(1.|,2,3)\n"),
             "numeric receiver cannot supply empty field guidance");
-    require(!recover(emptyPrefix + "  triple(reading.|,,3)\n"),
-            "empty-field probe does not repair a second malformed argument");
-    require(!recover(emptyPrefix + "  triple(reading.|,[2,3\n"),
-            "empty-field repair does not close an unclosed later array");
+    require(bool(recover(emptyPrefix + "  triple(reading.|,,3)\n")),
+            "checked first slot survives a later missing argument");
+    require(bool(recover(emptyPrefix + "  triple(reading.|,[2,3\n")),
+            "checked first slot survives a later unclosed array");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

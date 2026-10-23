@@ -2,6 +2,8 @@
 
 `kalandra-lsp` is the first native editor protocol implementation. It uses the C++ compiler's checker, [source overlays](native-source-overlays.md) and [diagnostic ranges](native-diagnostics.md); it does not invoke the JavaScript prototype or generate/run application code.
 
+The [unfinished-code completion contract](native-tooling-completion.md) describes the current editor recovery and N4 exit checks. Narrow recovery limits in the implementation records below describe earlier stages and are superseded by that contract.
+
 ## Build and connect
 
 ```sh
@@ -1357,3 +1359,14 @@ comparisons, checked record members, earlier slots, invalid call prefixes and
 malformed expressions. Protocol, relocated Release and installed VS Code checks
 preserve expression text and actual diagnostics while applying identifier-only
 edits and following live imported field names.
+
+
+## Structural unfinished-code recovery
+
+The [N4 completion contract](native-tooling-completion.md) extends the earlier
+EOF-only repairs to request-local structural recovery, compound signature slots,
+collection/index/control/closure holes and independent broken function bodies.
+Checked expression scope completion includes native keyword suggestions. Real
+diagnostics, source buffers, original replacement ranges, required semantic
+prefixes and the ban on executable partial IR remain in force. The linked
+checklist and qualification record define the completed scope and its limits.

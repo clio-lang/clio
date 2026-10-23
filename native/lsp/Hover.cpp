@@ -351,7 +351,7 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
                                            std::size_t offset, CheckOptions options,
                                            bool requireFieldProjection,
                                            bool requireNameProjection) {
-  if (!syntax.ok() || !syntax.module.source)
+  if ((!syntax.ok() && !syntax.module.editorOnly) || !syntax.module.source)
     return {};
   std::optional<ExprId> selected;
   std::optional<SourceLocation> callLocation, calleeLocation;
@@ -365,7 +365,8 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
         sourceLocation(syntax.module.source, syntax.module.expressions[call->callee].span);
     if (!location || !callee || location->source->path() != path ||
         callee->source->path() != path || offset <= callee->span.end ||
-        offset >= location->span.end)
+        (offset > location->span.end ||
+         (offset == location->span.end && !syntax.module.editorOnly)))
       continue;
     if (!callLocation || location->span.end - location->span.begin <
                              callLocation->span.end - callLocation->span.begin) {
@@ -386,8 +387,10 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   auto target = token ? sourceLocation(syntax.module.source, *token) : std::nullopt;
   if (token && !target)
     return {};
-  const auto lexed = lex(callLocation->source);
-  if (!lexed.diagnostics.empty())
+  SyntaxLimits limits;
+  limits.editorRecovery = syntax.module.editorOnly;
+  const auto lexed = lex(callLocation->source, limits);
+  if (!lexed.diagnostics.empty() && !syntax.module.editorOnly)
     return {};
   bool opened = false;
   std::size_t depth = 0, active = 0;
@@ -483,6 +486,40 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
     return {};
   CallableSignatureQuery query{
       invocationSpan, {}, editingName ? argumentReceiver : std::nullopt, argumentIndex};
+  if (syntax.module.editorOnly && active >= implicit && active - implicit < call.arguments.size()) {
+    const auto argument = call.arguments[active - implicit];
+    std::optional<SourceSpan> hole;
+    bool direct = false;
+    for (const auto &node : syntax.module.expressions) {
+      std::optional<SourceSpan> token;
+      if (const auto *name = std::get_if<NameExpr>(&node.value))
+        token = name->name;
+      else if (const auto *field = std::get_if<FieldExpr>(&node.value))
+        token = field->field;
+      const auto span = syntax.module.expressions[argument].span;
+      if (!token || token->begin < span.begin || token->end > span.end)
+        continue;
+      const auto [file, begin] = syntax.module.source->origin(token->begin);
+      const auto [lastFile, end] = syntax.module.source->origin(token->end);
+      const bool atToken = begin <= offset && offset <= end;
+      const bool nearHole =
+          token->begin == token->end &&
+          std::ranges::all_of(file->slice({std::min(begin, offset), std::max(begin, offset)}),
+                              [](char c) { return c == ' ' || c == '\n' || c == '\r'; });
+      if (file == lastFile && file->path() == path && (atToken || (!direct && nearHole)))
+        if (!hole || (atToken && !direct) || token->end - token->begin < hole->end - hole->begin) {
+          hole = token;
+          direct = atToken;
+        }
+    }
+    if (hole) {
+      query.argumentIndex = active;
+      query.argumentReceiver.reset();
+      query.editingExpression = argument;
+      query.editingSite = *hole;
+      editingName = true;
+    }
+  }
   const auto following = std::ranges::find_if(lexed.tokens, [&](const auto &token) {
     return token.span.begin >= offset && token.kind != TokenKind::Newline &&
            token.kind != TokenKind::Indent && token.kind != TokenKind::Dedent;
@@ -494,6 +531,12 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
     const auto name = target ? target->source->slice(target->span) : std::string_view{};
     return query.snapshot ? snapshotSignature(*query.snapshot, name, active) : std::nullopt;
   };
+  if (syntax.module.editorOnly) {
+    if (editingName || (!depth && (last == TokenKind::LeftParen || last == TokenKind::Comma)))
+      options.signature = &query;
+    (void)check(std::move(syntax), {}, options);
+    return projected();
+  }
   if (!target) {
     auto checked = check(std::move(syntax), {}, options);
     if (editingName || !checked.ok())

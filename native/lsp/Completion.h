@@ -10,7 +10,8 @@ struct CompletionInfo {
 };
 // Temporary identifier/field probes query checked scopes and nominal members; parsed relative
 // import strings also offer bounded filesystem/open-buffer paths. No source writes,
-// stale module, general parser recovery, auto-imports, or partial type information.
+// stale modules, auto-imports, or executable partial type information. Structural editor
+// recovery retains real diagnostics and exposes only a checked query snapshot.
 [[nodiscard]] CompletionInfo completeNames(const std::string &path, const std::string &text,
                                            std::size_t offset,
                                            const std::vector<ModulePackage> &packages = {},

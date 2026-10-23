@@ -119,9 +119,24 @@ public:
         error(invalid->code, invalid->message, invalid->span);
         return {syntax_.source, {}, std::move(diagnostics_)};
       }
+    const auto site = options_.completion  ? std::optional(options_.completion->site)
+                      : options_.signature ? std::optional(options_.signature->site)
+                                           : std::nullopt;
+    if (syntax_.editorOnly && site)
+      for (FunctionId i = 0; i < syntax_.functions.size(); ++i) {
+        const auto span = syntax_.functions[i].span;
+        if (span.begin <= site->begin && site->end <= span.end) {
+          analyzeFunction(i);
+          break;
+        }
+      }
     for (FunctionId i = 0;
-         i < syntax_.functions.size() && diagnostics_.size() < limits_.maxDiagnostics; ++i)
+         i < syntax_.functions.size() && diagnostics_.size() < limits_.maxDiagnostics; ++i) {
+      if (syntax_.editorOnly && ((options_.completion && options_.completion->reached) ||
+                                 (options_.signature && options_.signature->snapshot)))
+        break;
       analyzeFunction(i);
+    }
     // Transport provenance needs complete immutable bindings, including statements
     // in the parallel/conditional body currently being checked.
     if (diagnostics_.empty())
@@ -242,6 +257,9 @@ private:
       for (const auto *alias : {"int", "uint", "float"})
         insert(alias, ScopeNameKind::Function);
     }
+    if (!callTarget)
+      for (const auto *keyword : {"true", "false", "if", "match", "fn", "not"})
+        insert(keyword, ScopeNameKind::Keyword);
     for (const auto &[label, kind] : names) {
       if (query->names.size() == 256) {
         query->truncated = true;
@@ -1169,8 +1187,7 @@ private:
     }
     if constexpr (std::is_same_v<Operation, StringLiteral>) {
       std::uint64_t count = 0;
-      validateUtf8(
-          operation.value, [] { return true; }, &count);
+      validateUtf8(operation.value, [] { return true; }, &count);
       stringCounts_[id] = count;
     } else if constexpr (std::is_same_v<Operation, StringSlice>) {
       auto a = intConstants_.find(operation.start), b = intConstants_.find(operation.end);
@@ -1282,7 +1299,8 @@ private:
           constant = it->second;
       } else if (const auto *unary = std::get_if<ScalarUnary>(&op)) {
         if (auto it = intConstants_.find(unary->operand); it != intConstants_.end())
-          constant = unary->operation == TokenKind::Minus ? -__int128_t(it->second) : __int128_t(it->second);
+          constant = unary->operation == TokenKind::Minus ? -__int128_t(it->second)
+                                                          : __int128_t(it->second);
       } else if (const auto *binary = std::get_if<ScalarBinary>(&op)) {
         auto a = intConstants_.find(binary->left), b = intConstants_.find(binary->right);
         if ((binary->operation == TokenKind::Slash || binary->operation == TokenKind::Percent) &&
@@ -1292,18 +1310,28 @@ private:
         }
         if (a != intConstants_.end() && b != intConstants_.end()) {
           switch (binary->operation) {
-          case TokenKind::Plus: constant = __int128_t(a->second) + b->second; break;
-          case TokenKind::Minus: constant = __int128_t(a->second) - b->second; break;
+          case TokenKind::Plus:
+            constant = __int128_t(a->second) + b->second;
+            break;
+          case TokenKind::Minus:
+            constant = __int128_t(a->second) - b->second;
+            break;
           case TokenKind::Star:
             if (unsignedValue && b->second && a->second > maximum / b->second) {
-              error("S052", std::string("constant ") + typeName + " arithmetic overflows", syntax.span);
+              error("S052", std::string("constant ") + typeName + " arithmetic overflows",
+                    syntax.span);
               return {};
             }
             constant = __int128_t(a->second) * b->second;
             break;
-          case TokenKind::Slash: constant = __int128_t(a->second) / b->second; break;
-          case TokenKind::Percent: constant = __int128_t(a->second) % b->second; break;
-          default: break;
+          case TokenKind::Slash:
+            constant = __int128_t(a->second) / b->second;
+            break;
+          case TokenKind::Percent:
+            constant = __int128_t(a->second) % b->second;
+            break;
+          default:
+            break;
           }
         }
       }
@@ -1324,7 +1352,8 @@ private:
   std::unordered_map<ValueId, __int128_t> intConstants_;
   std::unordered_map<SymbolId, __int128_t> intBindings_;
   std::optional<ValueId> intLiteral(Frame &frame, SourceSpan span, const NumberExpr &literal,
-                                    bool negative = false, NumericType element = NumericType::Int32) {
+                                    bool negative = false,
+                                    NumericType element = NumericType::Int32) {
     const bool unsignedValue = isUnsigned(element);
     const bool uint64Value = element == NumericType::UInt64;
     const bool int64Value = element == NumericType::Int64;
@@ -1348,8 +1377,10 @@ private:
       type.element = element;
       return add(frame, type, span, UInt64Literal{magnitude});
     }
-    const auto value = negative ? (magnitude == (std::uint64_t(1) << 63) ? INT64_MIN : -static_cast<std::int64_t>(magnitude))
-                                : static_cast<std::int64_t>(magnitude);
+    const auto value =
+        negative ? (magnitude == (std::uint64_t(1) << 63) ? INT64_MIN
+                                                          : -static_cast<std::int64_t>(magnitude))
+                 : static_cast<std::int64_t>(magnitude);
     ValueType type;
     type.element = element;
     if (int64Value)
@@ -1374,7 +1405,8 @@ private:
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NumberExpr &literal,
                                const std::optional<ValueType> &context) {
     auto expected = context;
-    if (!expected && syntax_.source->slice(literal.literal).find_first_of(".eE") == std::string_view::npos)
+    if (!expected &&
+        syntax_.source->slice(literal.literal).find_first_of(".eE") == std::string_view::npos)
       return intLiteral(frame, span, literal, false, NumericType::Int64);
     if (!expected) {
       expected = ValueType{};
@@ -2063,6 +2095,21 @@ private:
       if (type.builtin != BuiltinValue::Record || type.tensor || type.array || type.task ||
           type.fallible || !type.record || !output_.records[*type.record].variants.empty())
         return;
+    }
+    if (options_.signature->editingExpression && options_.signature->editingSite) {
+      ScopeCompletion probe{*options_.signature->editingSite, "", {}, false, false};
+      auto *previous = options_.completion;
+      options_.completion = &probe;
+      const auto errors = diagnostics_.size();
+      const auto slot = options_.signature->argumentIndex;
+      (void)expression(frame, *options_.signature->editingExpression,
+                       slot && *slot < signature.parameters.size()
+                           ? std::optional(signature.parameters[*slot])
+                           : std::nullopt);
+      options_.completion = previous;
+      if (!probe.reached)
+        return;
+      diagnostics_.resize(errors); // Discard only diagnostics reached after the checked hole.
     }
     CallableSignatureSnapshot snapshot{signature, std::move(names), {}};
     for (const auto &record : output_.records)
@@ -4370,8 +4417,12 @@ CheckResult check(ParseResult syntax, SemanticLimits limits, CheckOptions option
   }
   if (options.signature)
     options.signature->snapshot.reset();
-  if (!syntax.ok())
+  const bool editing = syntax.module.editorOnly;
+  if ((!syntax.ok() && !editing) || (editing && !options.completion && !options.signature)) {
+    if (syntax.diagnostics.empty())
+      syntax.diagnostics.push_back({"E001", "editor recovery syntax cannot be compiled", {}});
     return {syntax.module.source, {}, std::move(syntax.diagnostics)};
+  }
   limits.maxDiagnostics = std::max<std::size_t>(1, limits.maxDiagnostics);
   auto result = Checker(std::move(syntax.module), limits, options).run();
   if (options.signature && options.signature->snapshot) {
@@ -4382,6 +4433,11 @@ CheckResult check(ParseResult syntax, SemanticLimits limits, CheckOptions option
                  diagnostic.span.end != site.end;
         }))
       options.signature->snapshot.reset();
+  }
+  if (editing) {
+    result.module.reset();
+    if (result.diagnostics.empty())
+      result.diagnostics.push_back({"E001", "editor query does not publish typed IR", {}});
   }
   return result;
 }

@@ -251,7 +251,7 @@ loadModuleGraph(std::string path, SyntaxLimits syntaxLimits, ModuleLimits module
       return {};
     }
     auto parsed = parse(*source, syntaxLimits);
-    if (!parsed.ok()) {
+    if (!parsed.ok() && !parsed.module.editorOnly) {
       failure = std::move(parsed);
       return {};
     }
@@ -319,7 +319,7 @@ loadModuleGraph(std::string path, SyntaxLimits syntaxLimits, ModuleLimits module
   auto source = std::make_shared<const SourceFile>(files[0].source->path(), std::move(text),
                                                    std::move(parts));
   auto result = parse(source, syntaxLimits);
-  if (!result.ok())
+  if (!result.ok() && !result.module.editorOnly)
     return result;
   for (auto &function : result.module.functions)
     function.moduleIndex = source->partIndex(function.name.begin);

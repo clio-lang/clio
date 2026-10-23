@@ -95,6 +95,8 @@ with tempfile.TemporaryDirectory(dir=root, prefix="install ") as temporary, temp
     assert "Native LSP:" in result.stdout
     run([sys.executable, Path(protocol).with_name("PackageTests.py"),
          prefix / "bin/kalandra-lsp", compiler, work / "package-protocol"], cwd, env=environment)
+    run([sys.executable, Path(protocol).with_name("RecoveryProtocolTests.py"),
+         prefix / "bin/kalandra-lsp", work / "recovery-protocol"], cwd, env=environment)
     assert (project / "main.k").read_text() == source
     assert original == {tool: digest(build / "native" / tool) for tool in tools}, "install/strip changed build binaries"
 print("Native editor tools: prefix/DESTDIR install, package checksums, relocation, runtime dependency audit, CLI and full stdio acceptance passed")

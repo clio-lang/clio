@@ -165,6 +165,9 @@ public:
     }
     for (const auto &token : delimiters_)
       error("L005", "unclosed delimiter", token.span);
+    if (limits_.editorRecovery && delimiters_.size() <= 8)
+      while (!delimiters_.empty())
+        recoverClose(position_);
     if (lineHasTokens_)
       emit(TokenKind::Newline, position_, position_);
     while (indents_.size() > 1) {
@@ -234,6 +237,30 @@ private:
       return;
     const auto width = position_ - begin;
     lineIndent_ = width;
+    if (limits_.editorRecovery && width == 0 && !delimiters_.empty()) {
+      const auto rest = text_.substr(position_);
+      const auto namedFunction = [](std::string_view text) {
+        if (!text.starts_with("fn "))
+          return false;
+        const auto name = text.find_first_not_of(' ', 3);
+        return name != text.npos && text[name] != '(';
+      };
+      const bool declaration =
+          namedFunction(rest) || (rest.starts_with("export ") && namedFunction(rest.substr(7))) ||
+          rest.starts_with("type ") || rest.starts_with("enum ") || rest.starts_with("error ") ||
+          rest.starts_with("from ") || rest.starts_with("export from ") ||
+          rest.starts_with("export type ") || rest.starts_with("export enum ") ||
+          rest.starts_with("export error ");
+      if (declaration && delimiters_.size() <= 8) {
+        const auto boundary = position_ ? position_ - 1 : 0;
+        while (!delimiters_.empty()) {
+          error("L005", "unclosed delimiter before declaration", delimiters_.back().span);
+          recoverClose(boundary);
+        }
+        emit(TokenKind::Newline, boundary, boundary);
+        lineHasTokens_ = false;
+      }
+    }
     while (!layouts_.empty() && delimiters_.size() == layouts_.back().depth) {
       auto &layout = layouts_.back();
       if (width <= layout.base) {
@@ -290,6 +317,27 @@ private:
     lambdaColon_ = false;
     lineStart_ = true;
   }
+  void recoverClose(std::size_t at) {
+    while (!layouts_.empty() && layouts_.back().depth >= delimiters_.size()) {
+      if (lineHasTokens_) {
+        emit(TokenKind::Newline, at, at);
+        lineHasTokens_ = false;
+      }
+      while (indents_.size() > layouts_.back().floor) {
+        indents_.pop_back();
+        emit(TokenKind::Dedent, at, at);
+      }
+      layouts_.pop_back();
+    }
+    const auto kind = delimiters_.back().kind;
+    delimiters_.pop_back();
+    emit(kind == TokenKind::LeftParen     ? TokenKind::RightParen
+         : kind == TokenKind::LeftBracket ? TokenKind::RightBracket
+                                          : TokenKind::RightBrace,
+         at, at);
+    while (!functionHeaders_.empty() && functionHeaders_.back() >= delimiters_.size())
+      functionHeaders_.pop_back();
+  }
   void open(TokenKind kind, std::size_t begin) {
     if (delimiters_.size() >= limits_.maxDepth) {
       error("L010", "delimiter nesting limit exceeded", {begin, position_});
@@ -311,9 +359,16 @@ private:
     }
     while (!functionHeaders_.empty() && functionHeaders_.back() >= delimiters_.size())
       functionHeaders_.pop_back();
-    if (delimiters_.empty() || delimiters_.back().kind != expected)
+    if (delimiters_.empty() || delimiters_.back().kind != expected) {
       error("L011", "mismatched closing delimiter", {begin, position_});
-    else
+      if (limits_.editorRecovery && delimiters_.size() <= 8) {
+        while (!delimiters_.empty() && delimiters_.back().kind != expected)
+          recoverClose(begin);
+        if (delimiters_.empty())
+          return;
+        delimiters_.pop_back();
+      }
+    } else
       delimiters_.pop_back();
     emit(kind, begin, position_);
   }

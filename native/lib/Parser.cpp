@@ -26,10 +26,14 @@ public:
   Parser(LexResult input, SyntaxLimits limits)
       : source_(std::move(input.source)), tokens_(std::move(input.tokens)), limits_(limits) {
     result_.module.source = source_;
+    result_.module.editorOnly = limits_.editorRecovery && input.diagnostics.size() <= 8 &&
+                                std::ranges::all_of(input.diagnostics, [](const auto &d) {
+                                  return d.code == "L005" || d.code == "L011";
+                                });
     result_.diagnostics = std::move(input.diagnostics);
   }
   ParseResult run() {
-    if (!result_.diagnostics.empty())
+    if (!result_.diagnostics.empty() && !result_.module.editorOnly)
       return std::move(result_);
     while (!at(TokenKind::End) && result_.diagnostics.size() < limits_.maxDiagnostics) {
       if (consume(TokenKind::Newline))
@@ -96,6 +100,16 @@ private:
     if (at(TokenKind::Equal))
       message = "bindings are statements, not expressions";
     error("P002", std::move(message), current().span);
+    const bool boundary = at(TokenKind::End) || at(TokenKind::Dedent) ||
+                          at(TokenKind::RightParen) || at(TokenKind::RightBracket) ||
+                          at(TokenKind::RightBrace);
+    const bool layout =
+        (kind == TokenKind::Newline || kind == TokenKind::Indent || kind == TokenKind::Dedent) &&
+        (boundary || (kind == TokenKind::Newline && (at(TokenKind::Comma) || word("else"))));
+    if (result_.module.editorOnly &&
+        (layout || kind == TokenKind::RightParen || kind == TokenKind::RightBracket ||
+         kind == TokenKind::RightBrace || kind == TokenKind::Colon))
+      return Token{kind, {current().span.begin, current().span.begin}};
     return {};
   }
   std::optional<TypeSyntax> parseType() {
@@ -422,19 +436,34 @@ private:
       return {};
     while (!at(TokenKind::Dedent) && !at(TokenKind::End) &&
            result_.diagnostics.size() < limits_.maxDiagnostics) {
+      const auto before = position_;
       auto statement = parseStatement();
       if (statement)
         function.body.push_back(std::move(*statement));
-      else
+      else {
+        if (result_.module.editorOnly) {
+          const SourceSpan hole{current().span.begin, current().span.begin};
+          if (auto id = add({hole, NameExpr{hole}}))
+            function.body.push_back({hole, {}, {}, *id});
+        }
         synchronizeStatement();
+      }
+      if (position_ == before)
+        break;
     }
     auto end = expect(TokenKind::Dedent, "expected the end of the function body");
     if (!end)
       return {};
     function.span = {start,
                      function.body.empty() ? end->span.begin : function.body.back().span.end};
-    if (function.body.empty() || function.body.back().binding)
+    if (function.body.empty() || function.body.back().binding) {
       error("P007", "function body must end with a result expression", end->span);
+      if (result_.module.editorOnly) {
+        const SourceSpan hole{end->span.begin, end->span.begin};
+        if (auto id = add({hole, NameExpr{hole}}))
+          function.body.push_back({hole, {}, {}, *id});
+      }
+    }
     return function;
   }
   std::optional<Statement> parseStatement() {
@@ -517,7 +546,10 @@ private:
         continue;
       }
       if (consume(TokenKind::Dot)) {
+        const auto memberOffset = tokens_[position_ - 1].span.end;
         auto field = expect(TokenKind::Identifier, "expected a field name after '.'");
+        if (!field && result_.module.editorOnly)
+          field = Token{TokenKind::Identifier, {memberOffset, memberOffset}};
         if (!field)
           return {};
         left = add({{node(*left).span.begin, field->span.end}, FieldExpr{*left, field->span}});
@@ -649,20 +681,43 @@ private:
       body.push_back({node(*value).span, {}, {}, *value});
       return body;
     }
+    if (result_.module.editorOnly &&
+        (at(TokenKind::Dedent) || at(TokenKind::End) || at(TokenKind::RightParen) ||
+         at(TokenKind::RightBracket) || at(TokenKind::RightBrace))) {
+      error("P002", "expected an indented body", current().span);
+      const SourceSpan hole{current().span.begin, current().span.begin};
+      auto id = add({hole, NameExpr{hole}});
+      if (!id)
+        return {};
+      body.push_back({hole, {}, {}, *id});
+      return body; // Leave the enclosing suite's boundary untouched.
+    }
     if (!expect(TokenKind::Indent, "expected an indented body"))
       return {};
-    while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
+    while (
+        !at(TokenKind::Dedent) && !at(TokenKind::End) &&
+        !(result_.module.editorOnly && (at(TokenKind::RightParen) || at(TokenKind::RightBracket) ||
+                                        at(TokenKind::RightBrace)))) {
+      const auto before = position_;
       auto statement = parseStatement();
       if (!statement)
         return {};
       body.push_back(std::move(*statement));
+      if (position_ == before)
+        break;
     }
     auto end = expect(TokenKind::Dedent, "expected end of body");
     if (!end)
       return {};
     if (body.empty() || body.back().binding) {
       error("P007", "body must end with a result expression", end->span);
-      return {};
+      if (!result_.module.editorOnly)
+        return {};
+      const SourceSpan hole{end->span.begin, end->span.begin};
+      auto id = add({hole, NameExpr{hole}});
+      if (!id)
+        return {};
+      body.push_back({hole, {}, {}, *id});
     }
     return body;
   }
@@ -736,6 +791,14 @@ private:
         if (!word("else")) {
           if (!std::holds_alternative<FailExpr>(node(yes->back().expression).value)) {
             error("P035", "if expressions require an else branch", current().span);
+            if (result_.module.editorOnly) {
+              const SourceSpan hole{current().span.begin, current().span.begin};
+              auto id = add({hole, NameExpr{hole}});
+              if (!id)
+                return {};
+              return add({{token.span.begin, hole.end},
+                          ConditionalExpr{*condition, std::move(*yes), {{hole, {}, {}, *id}}}});
+            }
             return {};
           }
           // An inline guard leaves its terminating newline to its enclosing statement.
@@ -913,6 +976,13 @@ private:
           {{token.span.begin, tokens_[position_ - 1].span.end}, ArrayExpr{std::move(*elements)}});
     }
     error("P012", "expected an expression", token.span);
+    if (result_.module.editorOnly &&
+        (at(TokenKind::Comma) || at(TokenKind::RightParen) || at(TokenKind::RightBracket) ||
+         at(TokenKind::RightBrace) || at(TokenKind::Newline) || at(TokenKind::Dedent) ||
+         at(TokenKind::End) || at(TokenKind::Colon))) {
+      const SourceSpan hole{token.span.begin, token.span.begin};
+      return add({hole, NameExpr{hole}}); // Unknown name, never an invented typed value.
+    }
     return {};
   }
   void synchronizeStatement() {
@@ -954,6 +1024,12 @@ private:
 } // namespace
 ParseResult parse(std::shared_ptr<const SourceFile> source, SyntaxLimits limits) {
   limits.maxDiagnostics = std::max<std::size_t>(1, limits.maxDiagnostics);
-  return Parser(lex(std::move(source), limits), limits).run();
+  auto result = Parser(lex(std::move(source), limits), limits).run();
+  if (result.diagnostics.size() >= limits.maxDiagnostics ||
+      std::ranges::any_of(result.diagnostics, [](const auto &d) {
+        return d.code == "P008" || d.code == "P009" || d.code == "P036";
+      }))
+    result.module.editorOnly = false;
+  return result;
 }
 } // namespace kalandra

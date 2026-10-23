@@ -1,5 +1,4 @@
 #include "Completion.h"
-#include "CallRecovery.h"
 #include "kalandra/Utf8.h"
 #include <algorithm>
 #include <filesystem>
@@ -103,21 +102,13 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
     return result;
   auto source = std::make_shared<const SourceFile>(canonical, text);
   const auto tokens = lex(source);
-  std::size_t closures = 0;
-  bool eofRepair = false;
-  if (!tokens.diagnostics.empty()) {
-    auto repaired = trailingCallClosures(tokens, text, offset);
-    if (!repaired) {
-      repaired = trailingCallClosures(tokens, text, text.size());
-      eofRepair = repaired.has_value();
-    }
-    if (!repaired)
-      return result;
-    closures = *repaired;
-  }
+  if (!std::ranges::all_of(tokens.diagnostics,
+                           [](const auto &d) { return d.code == "L005" || d.code == "L011"; }))
+    return result;
   for (const auto &token : tokens.tokens) {
     if (token.kind == TokenKind::String && token.span.begin < offset && offset < token.span.end)
-      return eofRepair ? result : completeImportPaths(source, token, offset, overlays);
+      return tokens.diagnostics.empty() ? completeImportPaths(source, token, offset, overlays)
+                                        : result;
     if (token.kind == TokenKind::Identifier && token.span.begin <= offset &&
         offset <= token.span.end) {
       result.replacement = token.span;
@@ -167,8 +158,7 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   if (text.size() - (result.replacement.end - result.replacement.begin) + probe.size() +
           (bareLabel      ? filler.size() + 2
            : missingValue ? filler.size() + 1
-                          : 0) +
-          closures >
+                          : 0) >
       SyntaxLimits{}.maxSourceBytes)
     return result;
   auto replacement = text;
@@ -179,19 +169,16 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
         result.replacement.begin + probe.size() + following[0]->span.end - result.replacement.end;
     replacement.insert(at, " " + std::string(filler));
   }
-  if (closures) {
-    if (eofRepair)
-      replacement.append(closures, ')');
-    else
-      replacement.insert(result.replacement.begin + probe.size(), closures, ')');
-  }
   std::erase_if(overlays, [&](const auto &entry) {
     std::error_code ec;
     return std::filesystem::weakly_canonical(entry.path, ec).string() == canonical && !ec;
   });
   overlays.push_back({canonical, std::move(replacement)});
-  auto syntax = loader ? loader(path, overlays) : loadModules(path, {}, {}, packages, overlays);
-  if (!syntax || !syntax->ok())
+  SyntaxLimits limits;
+  limits.editorRecovery = true;
+  auto syntax =
+      loader ? loader(path, overlays, true) : loadModules(path, limits, {}, packages, overlays);
+  if (!syntax || !syntax->module.editorOnly)
     return result;
   // Locate the probe through original-file identities so this does not depend
   // on how the module loader arranges the composed source.
@@ -308,54 +295,6 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   }
   if (!site)
     return result;
-  if (eofRepair) {
-    // Preserve every original suffix while closing only at EOF. Argument queries
-    // still go through ordinary callee/prefix checking before completion is reached.
-    const auto selectedName = [&](const Expr &expression) {
-      if (const auto *name = std::get_if<NameExpr>(&expression.value))
-        return name->name.begin <= site->begin && name->name.end == site->end;
-      if (const auto *field = std::get_if<FieldExpr>(&expression.value))
-        return field->field.begin == site->begin && field->field.end == site->end;
-      return false;
-    };
-    const auto containsSite = [&](ExprId id) {
-      const auto span = syntax->module.expressions[id].span;
-      return span.begin <= site->begin && site->end <= span.end;
-    };
-    const auto selectedArgument = [&](ExprId id) {
-      if (!containsSite(id))
-        return false;
-      // Follow only the operand containing the query, with a fixed work bound.
-      for (std::size_t depth = 0; depth < 64; ++depth) {
-        const auto &expression = syntax->module.expressions[id];
-        if (selectedName(expression))
-          return true;
-        std::optional<ExprId> next;
-        if (const auto *unary = std::get_if<UnaryExpr>(&expression.value);
-            unary && (unary->operation == TokenKind::Plus || unary->operation == TokenKind::Minus))
-          next = unary->operand;
-        else if (const auto *binary = std::get_if<BinaryExpr>(&expression.value);
-                 binary &&
-                 (binary->operation == TokenKind::Plus || binary->operation == TokenKind::Minus ||
-                  binary->operation == TokenKind::Star || binary->operation == TokenKind::Slash ||
-                  binary->operation == TokenKind::Percent))
-          next = containsSite(binary->left) ? binary->left : binary->right;
-        else if (const auto *comparison = std::get_if<ComparisonExpr>(&expression.value))
-          next = containsSite(comparison->left) ? comparison->left : comparison->right;
-        if (!next || !containsSite(*next))
-          return false;
-        id = *next;
-      }
-      return false;
-    };
-    const auto eligibleCall = [&](const Expr &expression) {
-      const auto *call = std::get_if<CallExpr>(&expression.value);
-      return call && (selectedName(syntax->module.expressions[call->callee]) ||
-                      std::ranges::any_of(call->arguments, selectedArgument));
-    };
-    if (!std::ranges::any_of(syntax->module.expressions, eligibleCall))
-      return result;
-  }
   ScopeCompletion query{*site, prefix, {}, false, false};
   options.completion = &query;
   (void)check(std::move(*syntax), {}, options);

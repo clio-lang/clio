@@ -268,7 +268,8 @@ planRename(const std::vector<std::string> &roots, const std::string &workspace,
   std::vector<Graph> graphs;
   std::size_t bytes = 0, edges = 0, identifiers = 0;
   for (const auto &root : roots) {
-    auto syntax = loader ? loader(root, overlays) : loadModules(root, {}, {}, packages, overlays);
+    auto syntax =
+        loader ? loader(root, overlays, false) : loadModules(root, {}, {}, packages, overlays);
     if (!syntax || !syntax->module.source)
       return std::unexpected("Cannot load rename source graph");
     bytes += syntax->module.source->text().size();
@@ -394,7 +395,7 @@ planRename(const std::vector<std::string> &roots, const std::string &workspace,
     for (const auto &file : before.sources)
       if (const auto overlay = proposed.find(file); overlay != proposed.end())
         updated.push_back({file, overlay->second});
-    auto syntax = loader ? loader(before.root, updated)
+    auto syntax = loader ? loader(before.root, updated, false)
                          : loadModules(before.root, {}, {}, packages, updated);
     if (!syntax || !syntax->module.source)
       return std::unexpected("Cannot load proposed rename");

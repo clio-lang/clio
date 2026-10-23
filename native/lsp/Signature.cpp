@@ -20,15 +20,26 @@ std::optional<SignatureInfo> signatureAt(const std::string &path, const std::str
   });
   overlays.push_back({canonical, text});
   const auto load = [&]() {
-    return loader ? loader(path, overlays) : loadModules(path, {}, {}, packages, overlays);
+    return loader ? loader(path, overlays, false) : loadModules(path, {}, {}, packages, overlays);
+  };
+  const auto recover = [&]() -> std::optional<SignatureInfo> {
+    overlays.back().text = text;
+    SyntaxLimits limits;
+    limits.editorRecovery = true;
+    auto recovered =
+        loader ? loader(path, overlays, true) : loadModules(path, limits, {}, packages, overlays);
+    if (!recovered || !recovered->module.editorOnly)
+      return {};
+    return signatureInfo(std::move(*recovered), canonical, offset, options);
   };
   auto syntax = load();
   if (syntax && syntax->ok())
-    return signatureInfo(std::move(*syntax), canonical, offset, options);
+    if (auto found = signatureInfo(std::move(*syntax), canonical, offset, options))
+      return found;
   auto source = std::make_shared<const SourceFile>(canonical, text);
   const auto tokens = lex(source);
   if (!std::ranges::all_of(tokens.diagnostics, [](const auto &d) { return d.code == "L005"; }))
-    return {};
+    return recover();
   auto replacement = text;
   auto queryOffset = offset;
   bool fieldProbe = false;
@@ -52,14 +63,16 @@ std::optional<SignatureInfo> signatureAt(const std::string &path, const std::str
        following->kind == TokenKind::Comma)) {
     constexpr std::string_view probe = "__kalandra_signature_field";
     if (replacement.size() > SyntaxLimits{}.maxSourceBytes - probe.size())
-      return {};
+      return recover();
     replacement.insert(offset, probe);
     queryOffset += probe.size();
     fieldProbe = true;
     overlays.back().text = replacement;
     syntax = load();
     if (syntax && syntax->ok())
-      return signatureInfo(std::move(*syntax), canonical, queryOffset, options, fieldProbe);
+      if (auto found =
+              signatureInfo(std::move(*syntax), canonical, queryOffset, options, fieldProbe))
+        return found;
   }
   // An argument name/member may have a suffix after the cursor. Close only at EOF
   // in that case, and require a validated argument projection in signatureInfo.
@@ -70,7 +83,7 @@ std::optional<SignatureInfo> signatureAt(const std::string &path, const std::str
     eofRepair = closures.has_value();
   }
   if (!closures || replacement.size() > SyntaxLimits{}.maxSourceBytes - *closures)
-    return {};
+    return recover();
   if (eofRepair)
     replacement.append(*closures, ')');
   else
@@ -78,7 +91,10 @@ std::optional<SignatureInfo> signatureAt(const std::string &path, const std::str
   overlays.back().text = std::move(replacement);
   syntax = load();
   if (!syntax || !syntax->ok())
-    return {};
-  return signatureInfo(std::move(*syntax), canonical, queryOffset, options, fieldProbe, eofRepair);
+    return recover();
+  if (auto found =
+          signatureInfo(std::move(*syntax), canonical, queryOffset, options, fieldProbe, eofRepair))
+    return found;
+  return recover();
 }
 } // namespace kalandra::lsp

@@ -229,13 +229,16 @@ public:
   bool writable(std::string_view path) const {
     return !project ||
            !lsp::containsPath((fs::path(project->manifest).parent_path() / ".kalandra").string(),
-                             path);
+                              path);
   }
-  std::expected<ParseResult, std::string>
-  loadGraph(const std::string &root, std::span<const SourceOverlay> overlays) const {
+  std::expected<ParseResult, std::string> loadGraph(const std::string &root,
+                                                    std::span<const SourceOverlay> overlays,
+                                                    bool editorRecovery = false) const {
+    SyntaxLimits syntaxLimits;
+    syntaxLimits.editorRecovery = editorRecovery;
     if (!project || project->dependencies.empty())
-      return loadModules(root, {}, {}, project ? project->packages : std::vector<ModulePackage>{},
-                         overlays);
+      return loadModules(root, syntaxLimits, {},
+                         project ? project->packages : std::vector<ModulePackage>{}, overlays);
     // The configured manifest is a startup snapshot. A changed file requires a
     // restart; locks and source integrity are verified afresh, with no installer.
     auto current = loadNativeProject(project->manifest);
@@ -260,11 +263,11 @@ public:
     // never a new workspace node with the application's dependency aliases.
     if (writable(root))
       installed->nodes.front().entry = root;
-    return loadPackageModules(installed->nodes, {}, {}, editable);
+    return loadPackageModules(installed->nodes, syntaxLimits, {}, editable);
   }
   lsp::SourceGraphLoader graphLoader() const {
-    return [this](const std::string &root, std::span<const SourceOverlay> overlays) {
-      return loadGraph(root, overlays);
+    return [this](const std::string &root, std::span<const SourceOverlay> overlays, bool editing) {
+      return loadGraph(root, overlays, editing);
     };
   }
   std::optional<std::string> configureWorkspaces(const j::Object &params) {
@@ -363,8 +366,7 @@ public:
         lsp::planRename(std::vector<std::string>(roots->begin(), roots->end()), *workspace,
                         project ? project->packages : empty, overlays, *path, *offset,
                         prepare ? std::nullopt : std::optional{std::string(*name)}, options,
-                        graphLoader(),
-                        [this](std::string_view file) { return writable(file); });
+                        graphLoader(), [this](std::string_view file) { return writable(file); });
     if (!plan) {
       error(id, -32803, plan.error());
       return;
@@ -638,6 +640,7 @@ public:
                           : name.kind == ScopeNameKind::EnumCase ? 20
                           : name.kind == ScopeNameKind::File     ? 17
                           : name.kind == ScopeNameKind::Folder   ? 19
+                          : name.kind == ScopeNameKind::Keyword  ? 14
                                                                  : 6;
         items.push_back(j::Object{
             {"label", name.name},
@@ -650,6 +653,7 @@ public:
                        : name.kind == ScopeNameKind::EnumCase ? "enum case"
                        : name.kind == ScopeNameKind::File     ? "source file"
                        : name.kind == ScopeNameKind::Folder   ? "directory"
+                       : name.kind == ScopeNameKind::Keyword  ? "expression keyword"
                                                               : "type"},
             {"textEdit", j::Object{{"range", *diagnostic.get("range")},
                                    {"newText", name.name + (info.appendFieldColon ? ": " : "")}}}});

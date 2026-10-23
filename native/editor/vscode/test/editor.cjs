@@ -966,6 +966,35 @@ async function run() {
   checks.push("Arithmetic operand completion preserves expression text and real delimiter diagnostics, then checks after the user closes the call");
   await replace(main,mainDisk);
   await clearDiagnostics(main);
+  const recoveryBase="fn add(left:int,right:int)->int:\n  left+right\nfn main():\n  value=2\n  values=[1,2]\n";
+  for (const body of ["values[va|Suffix", "if true:\n    va|Suffix", "map(values,fn(item:int): va|Suffix"]) {
+    const source=recoveryBase+"  "+body+"\n";
+    const items=await complete(main,source,"value");
+    const item=items.items.find((entry)=>label(entry)==="value");
+    await eventually(()=>vscode.languages.getDiagnostics(mainUri).length>0,"unfinished source diagnostics");
+    await applyCompletion(main,item,"vaSuffix","value");
+    assert.equal(main.getText(),source.replace("va|Suffix","value"));
+    assert.equal(await fs.readFile(mainUri.fsPath,"utf8"),mainDisk);
+  }
+  const compoundSource=recoveryBase+"  add(1,values[vaSuffix\n";
+  await replace(main,compoundSource);
+  const compoundHint=await eventually(async()=>{
+    const hint=await vscode.commands.executeCommand("vscode.executeSignatureHelpProvider",mainUri,position(main,"vaSuffix",2),"(");
+    return hint?.signatures?.length ? hint : undefined;
+  },"compound unfinished signature");
+  assert.equal(compoundHint.activeParameter,1);
+  assert.match(compoundHint.signatures[0].label,/right: int64/);
+  assert.equal(main.getText(),compoundSource);
+  await eventually(()=>vscode.languages.getDiagnostics(mainUri).some((item)=>item.code==="L005"),"compound signature retains actual diagnostics");
+  const keywordItems=await complete(main,recoveryBase+"  tru|\n","true");
+  assert.equal(keywordItems.items.find((item)=>label(item)==="true").kind,vscode.CompletionItemKind.Keyword);
+  const islandSource="fn broken():\n  add(1,\n"+recoveryBase+"  va|Suffix\n";
+  await complete(main,islandSource,"value");
+  assert.equal(main.getText(),islandSource.replace("|",""));
+  assert.equal(await fs.readFile(mainUri.fsPath,"utf8"),mainDisk);
+  await replace(main,mainDisk);
+  await clearDiagnostics(main);
+  checks.push("Structural unfinished-code completion and compound signatures preserve diagnostics, suffix ranges and disk content across collection/control/closure holes and independent broken declarations; keywords use native completion kinds");
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

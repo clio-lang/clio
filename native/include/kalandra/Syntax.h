@@ -88,6 +88,7 @@ struct SyntaxLimits {
   std::size_t maxNodes = 200000;
   std::size_t maxDepth = 128;
   std::size_t maxDiagnostics = 32;
+  bool editorRecovery = false; // Query-only syntax; never executable typed IR.
 };
 [[nodiscard]] std::expected<std::shared_ptr<const SourceFile>, std::string>
 loadSource(std::string path, std::size_t maxBytes = SyntaxLimits{}.maxSourceBytes);
@@ -279,6 +280,7 @@ struct Module {
   std::vector<Function> functions;
   std::vector<Import> imports;
   std::vector<RecordDeclaration> records;
+  bool editorOnly = false; // Structural recovery and unresolved expression holes.
 };
 struct ParseResult {
   Module module;

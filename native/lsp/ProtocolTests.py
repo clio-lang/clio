@@ -2063,7 +2063,8 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
         ],2):
         client.change(signature_document,text,version)
         client.barrier()
-        assert client.signature(signature_document,4,text.splitlines()[4].index('vaSuffix')+2)['result'] is None
+        hint = client.signature(signature_document,4,text.splitlines()[4].index('vaSuffix')+2)['result']
+        assert bool(hint) == (version == 4), (text, hint)  # Compound holes now retain checked signatures.
     assert not signature_document.exists() and signature_suffix_library.read_text()==signature_suffix_library_text
     client.finish()
 
@@ -2201,7 +2202,8 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     item=result['items'][0]
     assert item['textEdit']=={'newText':'value','range':{
         'start':{'line':3,'character':start},'end':{'line':3,'character':start+8}}},item
-    assert client.signature(signature_document,3,start+2)['result'] is None, 'compound signature holes stay excluded'
+    hint=client.signature(signature_document,3,start+2)['result']
+    assert hint and hint['activeParameter']==1, 'compound signature checks the prefix and receiver'
     assert client.hover(signature_document,3,start+1)['result'] is None
     assert not client.barrier(),'arithmetic completion published probe diagnostics'
     applied=apply_workspace_edit({'documentChanges':[{'textDocument':{'uri':signature_document.as_uri()},

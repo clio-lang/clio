@@ -109,7 +109,8 @@ int main() {
     require(!failed.module && members.reached && members.names.size() == 1 &&
                 members.names[0].kind == ScopeNameKind::Field,
             "member names do not expose partial IR");
-    require(query("fn main():\n  missing(|\n").names.empty(), "unknown callee provides no completion after recovery");
+    require(query("fn main():\n  missing(|\n").names.empty(),
+            "unknown callee provides no completion after recovery");
     const std::string combine = "fn combine(left:int,right:int)->int:\n  left+right\n";
     info = query(combine + "fn main():\n  value=2\n  combine(va|\n");
     require(info.names.size() == 1 && has(info, "value"), "first argument in trailing open call");
@@ -240,8 +241,8 @@ int main() {
                   "fn main():\n  broken=missing\n  callback=fn(value:int)->int ! Pa|:value\n  0\n")
                 .names.empty(),
             "earlier binding error blocks anonymous channel suggestions");
-    require(query(errors + "fn inspect()->int ! Pa|\n").names.empty(),
-            "unfinished declaration is not recovered");
+    require(has(query(errors + "fn inspect()->int ! Pa|\n"), "ParseError"),
+            "unfinished declaration retains checked error names");
     std::string manyErrors;
     for (int i = 0; i < 300; ++i)
       manyErrors += "error Error" + std::to_string(1000 + i).substr(1) + ":\n  Bad\n";
@@ -359,8 +360,8 @@ int main() {
     info = query("type Box:\n  value:int\nfn main():\n  earlier=1\n  Box {value:ear|}\n");
     require(has(info, "earlier") && !info.appendFieldColon, "initializer value remains lexical");
     require(query("fn main():\n  1 with { | }\n").names.empty(), "invalid update receiver");
-    require(query(point + "fn main():\n  Point { |\n").names.empty(),
-            "unclosed constructor is not recovered");
+    require(has(query(point + "fn main():\n  Point { |\n"), "x"),
+            "unclosed constructor retains checked labels");
     info = query(record + "fn inspect(value:Many):\n  value with { | }\nfn main():\n  0\n");
     require(info.names.size() == 256 && info.incomplete, "bounded label list");
     info =
@@ -499,8 +500,10 @@ int main() {
     info = query("fn entry():\n  in|Suffix(1)\n");
     require(info.names.size() == 5 && has(info, "int") && has(info, "int8") && has(info, "int64"),
             "numeric conversion call targets reuse concrete widths and aliases");
-    require(query("fn entry():\n  ma|\n").names.empty(), "builtins are not suggested as values");
-    require(query("fn entry():\n  map([1,2], ma|)\n").names.empty(),
+    require(has(query("fn entry():\n  ma|\n"), "match") &&
+                !has(query("fn entry():\n  ma|\n"), "matmul"),
+            "expression keywords are suggested without call-only builtins");
+    require(!has(query("fn entry():\n  map([1,2], ma|)\n"), "map"),
             "builtin call forms are not first-class map callbacks");
     info = query("fn entry():\n  map=fn(v:int):v*2\n  ma|(1)\n");
     require(info.names.size() == 2 && info.names[0].name == "map" &&
@@ -611,14 +614,14 @@ int main() {
             "invalid member receiver suppresses callee repair");
     require(query(combine + "fn main():\n  broken=missing\n  com|(1,2\n").names.empty(),
             "prior semantic errors suppress recovered callees");
-    require(query(combine + "fn main():\n  com|(1 +,2\n").names.empty(),
-            "malformed arguments are not repaired");
-    require(query(combine + "fn main():\n  com|([1,2\n").names.empty(),
-            "callee recovery does not close arrays");
+    require(has(query(combine + "fn main():\n  com|(1 +,2\n"), "combine"),
+            "checked callee survives malformed later arguments");
+    require(has(query(combine + "fn main():\n  com|([1,2\n"), "combine"),
+            "checked callee survives an unfinished array");
     require(query(combine + "fn main():\n  com|({value:1\n").names.empty(),
             "callee recovery does not close records");
-    require(query(combine + "fn main():\n  com|(1,2]\n").names.empty(),
-            "callee recovery rejects mismatched delimiters");
+    require(has(query(combine + "fn main():\n  com|(1,2]\n"), "combine"),
+            "checked callee survives a later mismatched delimiter");
     require(query(combine + "fn main():\n  com|(\"unterminated\n").names.empty(),
             "callee recovery rejects other lexical errors");
     require(query(combine + "fn main():\n  ((((((((com|(1,2\n").names.empty(),
