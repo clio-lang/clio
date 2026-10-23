@@ -15,7 +15,7 @@ foreach(TYPE IN ITEMS int8 uint8 int16 uint16 int32 uint32 int64 uint64)
     COMMAND "${VALIDATOR}" --target-env vulkan1.0 "${BASE}.spv"
     COMMAND "${DISASSEMBLER}" "${BASE}.spv" -o "${BASE}.spvasm"
     COMMAND "${CROSS}" "${BASE}.spv" --msl --msl-version "${LOCK_typedMslVersion}" --output "${BASE}.metal"
-    COMMAND "${KALANDRA_METAL_COMPILER}" -isysroot "${KALANDRA_METAL_SDK}"
+    COMMAND "${KALANDRA_METAL_COMPILER}" "-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}" -isysroot "${KALANDRA_METAL_SDK}"
       "-std=${LOCK_typedMetalLanguageVersion}" -fno-fast-math -ffp-contract=off
       "-fmodules-cache-path=${OUT}/module-cache" -c "${BASE}.metal" -o "${BASE}.air"
     COMMAND "${KALANDRA_METAL_COMPILER}" "${BASE}.air" -o "${BASE}.metallib"

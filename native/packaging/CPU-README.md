@@ -32,7 +32,7 @@ retain their configured LLVM/Clang dependency paths. Check
 `llvmRuntime` value. Ordinary generated programs link the private CPU runtime
 statically and execute without the compiler package or LLVM.
 
-Compilation requires Apple's SDK/linker on macOS, the system C/C++ development
+The supported macOS minimum is 26.0. Compilation requires Apple's SDK/linker on macOS, the system C/C++ development
 files on Linux (Ubuntu 24.04 / glibc 2.39 baseline), or Microsoft Visual Studio
 C++ Build Tools and the Windows SDK on Windows 11 x86-64. On Windows, run the
 compiler in a Visual Studio developer shell and name executables `program.exe`.

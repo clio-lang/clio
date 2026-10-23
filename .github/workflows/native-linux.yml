@@ -14,7 +14,7 @@ permissions:
   contents: read
 concurrency:
   group: native-linux-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   cpu:
     runs-on: ubuntu-24.04

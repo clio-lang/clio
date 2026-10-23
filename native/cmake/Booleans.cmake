@@ -11,7 +11,7 @@ target_compile_definitions(kalandra PRIVATE
   KALANDRA_BOOL_ENTRY="$<TARGET_FILE:kalandra-bool-entry-debug>"
   KALANDRA_BOOL_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-bool-entry-sanitized>"
   KALANDRA_BOOL_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-bool-entry-thread-sanitized>")
-add_dependencies(kalandra kalandra-bool-entry-debug kalandra-bool-entry-sanitized kalandra-bool-entry-thread-sanitized)
+kalandra_compiler_runtimes(kalandra-bool-entry-debug kalandra-bool-entry-sanitized kalandra-bool-entry-thread-sanitized)
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug sanitized)
     add_executable(kalandra-boolean-tests-${VARIANT} tests/BooleanTests.cpp)

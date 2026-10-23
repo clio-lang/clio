@@ -28,7 +28,7 @@ add_custom_command(OUTPUT "${BASE}.metallib" "${BASE}.lowered.mlir" "${BASE}.spv
   COMMAND "${SOURCE_spirvToolsRoot}/bin/spirv-dis" "${BASE}.spv" -o "${BASE}.spvasm"
   COMMAND "${SOURCE_spirvCrossRoot}/bin/spirv-cross" "${BASE}.spv" --reflect --output "${BASE}.reflection.json"
   COMMAND "${SOURCE_spirvCrossRoot}/bin/spirv-cross" "${BASE}.spv" --msl --msl-version "${SOURCE_strictMslVersion}" --output "${BASE}.metal"
-  COMMAND "${KALANDRA_METAL_COMPILER}" -isysroot "${KALANDRA_METAL_SDK}" "-std=${SOURCE_strictMetalLanguageVersion}" -fno-fast-math -ffp-contract=off
+  COMMAND "${KALANDRA_METAL_COMPILER}" "-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}" -isysroot "${KALANDRA_METAL_SDK}" "-std=${SOURCE_strictMetalLanguageVersion}" -fno-fast-math -ffp-contract=off
     "-fmodules-cache-path=${CMAKE_CURRENT_BINARY_DIR}/module-cache" -c "${BASE}.metal" -o "${BASE}.air"
   COMMAND "${KALANDRA_METAL_COMPILER}" "${BASE}.air" -o "${BASE}.metallib"
   DEPENDS "${BASE}.mlir" kalandra-metal-strict kalandra-metal-extract "${PROJECT_SOURCE_DIR}/native/metal-proof/toolchain.json"

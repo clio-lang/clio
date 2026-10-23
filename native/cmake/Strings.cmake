@@ -14,7 +14,7 @@ target_compile_definitions(kalandra PRIVATE
   KALANDRA_STRING_ENTRY="$<TARGET_FILE:kalandra-string-entry-debug>"
   KALANDRA_STRING_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-string-entry-sanitized>"
   KALANDRA_STRING_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-string-entry-thread-sanitized>")
-add_dependencies(kalandra kalandra-string-entry-debug kalandra-string-entry-sanitized kalandra-string-entry-thread-sanitized)
+kalandra_compiler_runtimes(kalandra-string-entry-debug kalandra-string-entry-sanitized kalandra-string-entry-thread-sanitized)
 if(BUILD_TESTING)
   find_program(KALANDRA_PYTHON3 python3 REQUIRED)
   foreach(VARIANT IN ITEMS debug sanitized)

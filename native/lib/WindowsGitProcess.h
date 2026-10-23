@@ -150,8 +150,9 @@ std::string windowsGitProcess(const std::filesystem::path &executable,
       {L"SystemRoot", systemRoot.wstring()},
       {L"TEMP", directory.wstring()},
       {L"TMP", directory.wstring()},
-      {L"PATH", (gitRoot / "mingw64/bin").wstring() + L";" + (gitRoot / "usr/bin").wstring() +
-                    L";" + (systemRoot / "System32").wstring()}};
+      {L"PATH", (gitRoot / "mingw64/bin").wstring() + L";" + (gitRoot / "ucrt64/bin").wstring() +
+                    L";" + (gitRoot / "usr/bin").wstring() + L";" +
+                    (systemRoot / "System32").wstring()}};
   std::wstring block;
   for (const auto &[key, value] : environment) {
     block += key + L"=" + value;

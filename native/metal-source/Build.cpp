@@ -161,7 +161,7 @@ void buildMetalProgram(const std::filesystem::path &directory,
                                  "--msl-device-argument-buffer", "0",
                                  "--msl-force-active-argument-buffer-resources"});
     run(std::move(cross));
-    run({metalCompiler, "-isysroot", sdk,
+    run({metalCompiler, "-mmacosx-version-min=" KALANDRA_NATIVE_MACOS_MINIMUM, "-isysroot", sdk,
          std::string("-std=") + (numeric ? KALANDRA_GPU_TYPED_METAL_LANGUAGE : "macos-metal2.2"),
          "-fno-fast-math", "-ffp-contract=off",
          "-fmodules-cache-path=" + (directory / "module-cache").string(), "-c", base + ".metal",
@@ -189,8 +189,17 @@ void buildMetalProgram(const std::filesystem::path &directory,
     throw std::runtime_error(error.message());
   llvm::sys::fs::closeFile(descriptor);
   llvm::FileRemover cleanup(temporary);
-  std::vector<std::string> command{clang, "-std=c++23", "-Wall", "-Wextra", "-Werror",
-                                   "-ffp-contract=off", "-isysroot", sdk, "-I", include};
+  std::vector<std::string> command{clang,
+                                   "-std=c++23",
+                                   "-Wall",
+                                   "-Wextra",
+                                   "-Werror",
+                                   "-ffp-contract=off",
+                                   "-isysroot",
+                                   sdk,
+                                   "-I",
+                                   include,
+                                   "-mmacosx-version-min=" KALANDRA_NATIVE_MACOS_MINIMUM};
 #ifdef KALANDRA_INSTALLED_COMPILER
   const auto clangResources = resourceRoot().parent_path() / "toolchain/clang";
   if (clang != KALANDRA_GPU_CLANG) {

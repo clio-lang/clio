@@ -182,6 +182,13 @@ add_library(kalandra-native-runtime-thread-sanitized STATIC runtime/Runtime.cpp 
 target_link_libraries(kalandra-native-runtime-thread-sanitized PUBLIC Threads::Threads)
 target_compile_options(kalandra-native-runtime-thread-sanitized PRIVATE -Wall -Wextra -Werror -O1 -g
   -fsanitize=thread -fno-omit-frame-pointer)
+function(kalandra_compiler_runtimes)
+  foreach(_runtime IN LISTS ARGN)
+    if(NOT WIN32 OR NOT _runtime MATCHES "thread-sanitized")
+      add_dependencies(kalandra ${_runtime})
+    endif()
+  endforeach()
+endfunction()
 add_executable(kalandra tools/compile.cpp)
 target_include_directories(kalandra SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 target_link_libraries(kalandra PRIVATE kalandra-backend kalandra-packages LLVM MLIR)
@@ -191,7 +198,7 @@ target_compile_definitions(kalandra PRIVATE
   KALANDRA_RUNTIME="$<TARGET_FILE:kalandra-native-runtime>"
   KALANDRA_SANITIZED_RUNTIME="$<TARGET_FILE:kalandra-native-runtime-sanitized>"
   KALANDRA_THREAD_SANITIZED_RUNTIME="$<TARGET_FILE:kalandra-native-runtime-thread-sanitized>")
-add_dependencies(kalandra kalandra-native-runtime kalandra-native-runtime-sanitized kalandra-native-runtime-thread-sanitized)
+kalandra_compiler_runtimes(kalandra-native-runtime kalandra-native-runtime-sanitized kalandra-native-runtime-thread-sanitized)
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug optimized sanitized)
     if(VARIANT STREQUAL "sanitized")
@@ -474,7 +481,7 @@ target_compile_definitions(kalandra PRIVATE
   KALANDRA_INT32_ENTRY="$<TARGET_FILE:kalandra-int32-entry-debug>"
   KALANDRA_INT32_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-int32-entry-sanitized>"
   KALANDRA_INT32_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-int32-entry-thread-sanitized>")
-add_dependencies(kalandra kalandra-int32-entry-debug kalandra-int32-entry-sanitized kalandra-int32-entry-thread-sanitized)
+kalandra_compiler_runtimes(kalandra-int32-entry-debug kalandra-int32-entry-sanitized kalandra-int32-entry-thread-sanitized)
 
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug sanitized)
@@ -633,7 +640,7 @@ target_compile_definitions(kalandra PRIVATE
   KALANDRA_UINT32_ENTRY="$<TARGET_FILE:kalandra-uint32-entry-debug>"
   KALANDRA_UINT32_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-uint32-entry-sanitized>"
   KALANDRA_UINT32_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-uint32-entry-thread-sanitized>")
-add_dependencies(kalandra kalandra-uint32-entry-debug kalandra-uint32-entry-sanitized kalandra-uint32-entry-thread-sanitized)
+kalandra_compiler_runtimes(kalandra-uint32-entry-debug kalandra-uint32-entry-sanitized kalandra-uint32-entry-thread-sanitized)
 
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug sanitized)
@@ -719,7 +726,7 @@ target_compile_definitions(kalandra PRIVATE
   KALANDRA_INT64_ENTRY="$<TARGET_FILE:kalandra-int64-entry-debug>"
   KALANDRA_INT64_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-int64-entry-sanitized>"
   KALANDRA_INT64_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-int64-entry-thread-sanitized>")
-add_dependencies(kalandra kalandra-int64-entry-debug kalandra-int64-entry-sanitized kalandra-int64-entry-thread-sanitized)
+kalandra_compiler_runtimes(kalandra-int64-entry-debug kalandra-int64-entry-sanitized kalandra-int64-entry-thread-sanitized)
 
 
 if(BUILD_TESTING)
@@ -781,7 +788,7 @@ target_compile_definitions(kalandra PRIVATE
   KALANDRA_UINT64_ENTRY="$<TARGET_FILE:kalandra-uint64-entry-debug>"
   KALANDRA_UINT64_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-uint64-entry-sanitized>"
   KALANDRA_UINT64_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-uint64-entry-thread-sanitized>")
-add_dependencies(kalandra kalandra-uint64-entry-debug kalandra-uint64-entry-sanitized kalandra-uint64-entry-thread-sanitized)
+kalandra_compiler_runtimes(kalandra-uint64-entry-debug kalandra-uint64-entry-sanitized kalandra-uint64-entry-thread-sanitized)
 
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug sanitized)
@@ -922,7 +929,7 @@ target_compile_definitions(kalandra PRIVATE
   KALANDRA_FLOAT64_ENTRY="$<TARGET_FILE:kalandra-float64-entry-debug>"
   KALANDRA_FLOAT64_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-float64-entry-sanitized>"
   KALANDRA_FLOAT64_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-float64-entry-thread-sanitized>")
-add_dependencies(kalandra kalandra-float64-entry-debug kalandra-float64-entry-sanitized kalandra-float64-entry-thread-sanitized)
+kalandra_compiler_runtimes(kalandra-float64-entry-debug kalandra-float64-entry-sanitized kalandra-float64-entry-thread-sanitized)
 
 if(BUILD_TESTING)
   include(cmake/Float64.cmake)
@@ -1032,3 +1039,15 @@ include(cmake/CPUCompilerInstall.cmake)
 include(cmake/MetalCompilerInstall.cmake)
 
 include(cmake/Scaffold.cmake)
+
+# LLVM does not implement Windows ThreadSanitizer. Keep generator-expression
+# resource names available for the driver's early diagnostic, but never build
+# the unsupported runtime targets in a Windows default build.
+if(WIN32)
+  get_property(_native_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+  foreach(_native_target IN LISTS _native_targets)
+    if(_native_target MATCHES "thread-sanitized")
+      set_target_properties(${_native_target} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+    endif()
+  endforeach()
+endif()

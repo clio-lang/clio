@@ -21,7 +21,18 @@ endif()
 if(NOT DEFINED CMAKE_CXX_COMPILER)
   set(CMAKE_CXX_COMPILER "${KALANDRA_LLVM_ROOT}/bin/clang++${_compiler_suffix}" CACHE FILEPATH "C++ compiler")
 endif()
+if(CMAKE_HOST_APPLE)
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "26.0" CACHE STRING "Minimum supported macOS")
+  if(CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS "26.0")
+    message(FATAL_ERROR "Native distributions require macOS 26 or later")
+  endif()
+endif()
 project(KalandraNative LANGUAGES C CXX)
+set(_native_target_options)
+if(APPLE)
+  list(APPEND _native_target_options "-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+  add_compile_definitions(KALANDRA_NATIVE_MACOS_MINIMUM="${CMAKE_OSX_DEPLOYMENT_TARGET}")
+endif()
 add_compile_options("-ffile-prefix-map=${PROJECT_SOURCE_DIR}=/kalandra/src"
   "-ffile-prefix-map=${PROJECT_BINARY_DIR}=/kalandra/build"
   "-fdebug-compilation-dir=/kalandra/build")
@@ -47,7 +58,7 @@ if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR
   message(FATAL_ERROR "Use Clang ${KALANDRA_LLVM_VERSION} from KALANDRA_LLVM_ROOT")
 endif()
 file(WRITE "${PROJECT_BINARY_DIR}/CMakeFiles/kalandra-native-target.cpp" "int kalandra_native_target;\n")
-execute_process(COMMAND "${CMAKE_CXX_COMPILER}" -S -emit-llvm -x c++
+execute_process(COMMAND "${CMAKE_CXX_COMPILER}" ${_native_target_options} -S -emit-llvm -x c++
   "${PROJECT_BINARY_DIR}/CMakeFiles/kalandra-native-target.cpp" -o -
   OUTPUT_VARIABLE _native_ir ERROR_VARIABLE _native_error RESULT_VARIABLE _native_status)
 if(NOT _native_status EQUAL 0)

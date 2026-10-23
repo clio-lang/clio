@@ -12,7 +12,7 @@ target_compile_definitions(kalandra PRIVATE
   KALANDRA_COLLECTION_ENTRY="$<TARGET_FILE:kalandra-collection-entry-debug>"
   KALANDRA_COLLECTION_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-collection-entry-sanitized>"
   KALANDRA_COLLECTION_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-collection-entry-thread-sanitized>")
-add_dependencies(kalandra kalandra-collection-entry-debug kalandra-collection-entry-sanitized kalandra-collection-entry-thread-sanitized)
+kalandra_compiler_runtimes(kalandra-collection-entry-debug kalandra-collection-entry-sanitized kalandra-collection-entry-thread-sanitized)
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
     add_executable(kalandra-collection-display-${VARIANT} tests/CollectionDisplayTests.cpp)

@@ -14,7 +14,7 @@ def run(args):
         raise RuntimeError((args, p.returncode, p.stdout, p.stderr))
     return p.stdout + p.stderr
 
-def qualify(root, record):
+def qualify(root, destination):
     results = []
     for kind in ('editor-tools', 'cpu', 'metal'):
         image = root / kind / f'kalandra-native-{kind}-standalone.dmg'
@@ -61,7 +61,7 @@ def qualify(root, record):
                 assert run([output]).strip() == '42'
             results.append({'kind': kind, 'artifactSHA256': record['artifactSHA256'], 'staple': staple.strip(), 'imageGatekeeper': assessment.strip(), 'binaryGatekeeper': binary_assessment.strip(), 'quarantineExecution': 'passed', 'notarization': record['notarization']})
         print(f'Quarantined {kind}: staple, image Gatekeeper, quarantined CLI execution and compiler independence passed', flush=True)
-    record.write_text(json.dumps(results, indent=2) + '\n')
+    destination.write_text(json.dumps(results, indent=2) + '\n')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('signed', type=Path)

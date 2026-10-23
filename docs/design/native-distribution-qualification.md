@@ -2,7 +2,9 @@
 
 N5 is **in progress**. Its agreed scope is macOS ARM64 with CPU/Metal, plus CPU
 qualification on Linux x86-64 and Windows x86-64. FreeBSD is deferred by the
-publisher. CUDA remains a separate roadmap.
+publisher. The supported macOS minimum is **26.0**, selected by the publisher.
+Hosted qualification now uses `macos-26`; CPU and Metal application compilation
+explicitly preserve that deployment target. CUDA remains a separate roadmap.
 
 ## Distribution contract
 

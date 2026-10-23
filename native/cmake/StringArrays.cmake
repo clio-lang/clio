@@ -15,7 +15,7 @@ target_compile_definitions(kalandra PRIVATE
   KALANDRA_STRING_ARRAY_ENTRY="$<TARGET_FILE:kalandra-string-array-entry-debug>"
   KALANDRA_STRING_ARRAY_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-string-array-entry-sanitized>"
   KALANDRA_STRING_ARRAY_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-string-array-entry-thread-sanitized>")
-add_dependencies(kalandra kalandra-string-array-entry-debug kalandra-string-array-entry-sanitized kalandra-string-array-entry-thread-sanitized)
+kalandra_compiler_runtimes(kalandra-string-array-entry-debug kalandra-string-array-entry-sanitized kalandra-string-array-entry-thread-sanitized)
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug sanitized)
     add_executable(kalandra-string-array-tests-${VARIANT} tests/StringArrayTests.cpp)

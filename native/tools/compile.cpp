@@ -439,6 +439,9 @@ int main(int argc, char **argv) {
   command.push_back("-fms-runtime-lib=static");
 #else
   command.push_back("-pthread");
+#ifdef __APPLE__
+  command.push_back("-mmacosx-version-min=" KALANDRA_NATIVE_MACOS_MINIMUM);
+#endif
 #endif
   command.insert(command.end(), archives.begin(), archives.end());
   command.insert(command.end(), {"-o", std::string(linkedOutput)});
