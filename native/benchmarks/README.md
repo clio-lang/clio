@@ -253,3 +253,13 @@ The direct reduction control is unchanged and does not use managed parameter pac
 The [fair optimization report](../../benchmarks/results/optimization-2026-10-24.md) records source-level calls, CPU packed matrix kernels and hardware Metal contraction blocks. Use [optimization_controls.py](optimization_controls.py) after the fair suites for a matched cancellation-token control and separate device/encoding counters. `native-fast-calls` and `native-cpu-benchmark-cells` qualify call safety and every output cell of the timed matrix inputs; the existing CPU/Metal optimization tests retain full arithmetic conformance.
 
 The [scalar tail-call follow-up](../../benchmarks/results/tail-calls-2026-10-24.md) qualifies logical depth, cancellation and stack-budgeted loop specialization. Run `optimization_controls.py --cpu-only` after the fair source suite to measure token-bound calls without reusing GPU artifacts. `native-tail-calls`, `native-tail-calls-software` and `native-total-hardware-casts` retain independent semantic/numerical assertions; the tail driver optionally accepts a frozen `--baseline` compiler for exact differential qualification.
+
+The [bounded inlining follow-up](../../benchmarks/results/checked-inlining-2026-10-24.md) measures one checked recursive expansion level, preserving the same source algorithms. To reproduce its interleaved before/after control, provide a compiler built from the pre-inlining `23c30fcb` source:
+
+```sh
+python3 native/benchmarks/checked_inlining.py \
+  --baseline-compiler /path/to/pre-inlining/kalandra \
+  --output benchmarks/results/checked-inlining-reproduction.json
+```
+
+Both compilers link the current optimized runtime archive. Each compiler/runtime/source/binary hash is recorded; verify that runtime and baseline source match the intended comparison. `native-checked-inlining`, the hardware/software `native-checked-inlining-source-*` tests and `native-static-numerical-shapes` qualify bounded growth, logical state, floating recursion and static tensor paths. The floating source driver also accepts an optional `--baseline` for differential qualification.

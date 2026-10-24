@@ -57,7 +57,7 @@ Matrix multiplication allocates one reduction scratch buffer per operation and r
 
 Intermediate ownership conventions may copy an input returned by a function. That is valid immutable behavior; removing unnecessary copies is later optimization work. Returning an input and using both its original and returned values is covered by an executable regression test.
 
-Source functions currently carry noinline in the LLVM baseline so tensor returns and argument lifetimes are tested across real call boundaries. Inlining and more aggressive tensor optimization can follow after this baseline. The backend initially registers the stock dialect/extension/pass set required by the pinned toolchain; narrowing compiler registration and deployment size is also later work.
+Source functions carry noinline in emitted LLVM so downstream optimization preserves the compiler's checked stack boundaries. Before emission, [budgeted checked-call inlining](checked-call-optimization.md#budgeted-checked-call-inlining) may expand one level of small scalar calls while retaining logical admission/polls and rechecking the combined stack budget. Tensor/aggregate signatures keep their call boundaries. The backend initially registers the stock dialect/extension/pass set required by the pinned toolchain; narrowing compiler registration and deployment size is also later work.
 
 ## Internal CPU ABI and ownership
 

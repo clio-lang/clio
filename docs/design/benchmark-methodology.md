@@ -31,3 +31,5 @@ The [measured results and limitations](../../benchmarks/results/fair-benchmarks-
 The [checked-call/matrix follow-up](../../benchmarks/results/optimization-2026-10-24.md) reruns both fair suites after optimization. It preserves the same algorithms, library APIs, arithmetic and timing boundaries. The Rust/C++ source-performance target remains unmet; faster tensor kernels are not used as evidence of compiler parity.
 
 The subsequent [scalar tail-call and cancellation results](../../benchmarks/results/tail-calls-2026-10-24.md) retain all source algorithms, intermediate variants, token costs and small regressions. Numerical and safety qualification accompany the final compiler. These measurements still do not meet the Rust/C++ source-performance target.
+
+The [bounded inlining results](../../benchmarks/results/checked-inlining-2026-10-24.md) retain the same source algorithms and add an interleaved baseline/current control using one byte-identical runtime archive, with bound/unbound cancellation tokens. The initial trial and final qualification are separate records; the source-performance target remains unmet.

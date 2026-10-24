@@ -173,6 +173,14 @@ add_library(kalandra-backend STATIC lib/Backend.cpp lib/CheckedABI.cpp lib/TaskB
 target_include_directories(kalandra-backend SYSTEM PRIVATE ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
 target_link_libraries(kalandra-backend PUBLIC kalandra-semantics PRIVATE kalandra-strict-float MLIR LLVM)
 target_compile_options(kalandra-backend PRIVATE -Wall -Wextra -Werror)
+if(BUILD_TESTING)
+  add_executable(kalandra-checked-inlining-tests tests/CheckedInliningTests.cpp)
+  target_include_directories(kalandra-checked-inlining-tests SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
+  target_link_libraries(kalandra-checked-inlining-tests PRIVATE kalandra-backend LLVM)
+  target_compile_options(kalandra-checked-inlining-tests PRIVATE -Wall -Wextra -Werror)
+  add_test(NAME native-checked-inlining COMMAND kalandra-checked-inlining-tests)
+  set_tests_properties(native-checked-inlining PROPERTIES TIMEOUT 30)
+endif()
 add_library(kalandra-native-runtime STATIC runtime/Runtime.cpp runtime/Tasks.cpp runtime/TaskABI.cpp runtime/Entry.cpp)
 target_link_libraries(kalandra-native-runtime PUBLIC Threads::Threads)
 target_compile_options(kalandra-native-runtime PRIVATE -Wall -Wextra -Werror)
@@ -1069,6 +1077,13 @@ if(BUILD_TESTING)
       --compiler "$<TARGET_FILE:kalandra>" --clang "${CMAKE_CXX_COMPILER}"
       --output "${CMAKE_CURRENT_BINARY_DIR}/fast-calls")
   set_tests_properties(native-fast-calls PROPERTIES TIMEOUT 600)
+  foreach(POLICY IN ITEMS hardware software)
+    add_test(NAME native-checked-inlining-source-${POLICY}
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/CheckedInliningSourceTests.py"
+        --compiler "$<TARGET_FILE:kalandra>" --clang "${CMAKE_CXX_COMPILER}"
+        --arithmetic "${POLICY}" --output "${CMAKE_CURRENT_BINARY_DIR}/checked-inlining-${POLICY}")
+    set_tests_properties(native-checked-inlining-source-${POLICY} PROPERTIES TIMEOUT 900)
+  endforeach()
   add_test(NAME native-tail-calls
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/TailCallTests.py"
       --compiler "$<TARGET_FILE:kalandra>" --clang "${CMAKE_CXX_COMPILER}"
@@ -1092,4 +1107,8 @@ if(BUILD_TESTING)
       --compiler "$<TARGET_FILE:kalandra>" --clang "${CMAKE_CXX_COMPILER}"
       --output "${CMAKE_CURRENT_BINARY_DIR}/cpu-optimization")
   set_tests_properties(native-cpu-optimization PROPERTIES TIMEOUT 600)
+  add_test(NAME native-static-numerical-shapes
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/StaticNumericalShapeTests.py"
+      --compiler "$<TARGET_FILE:kalandra>" --output "${CMAKE_CURRENT_BINARY_DIR}/static-numerical-shapes")
+  set_tests_properties(native-static-numerical-shapes PROPERTIES TIMEOUT 900)
 endif()

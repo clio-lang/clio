@@ -156,6 +156,76 @@ void versionCheckedTailLoop(llvm::Function &function) {
   }
   candidate->eraseFromParent();
 }
+void inlineCheckedScalarCalls(llvm::Module &module) {
+  using namespace llvm;
+  // Work from frozen bodies: order within the module must not recursively grow
+  // candidates. Every copied body includes its admission, leave and poll paths.
+  std::vector<std::pair<Function *, Function *>> snapshots;
+  std::unordered_map<Function *, Function *> bodies;
+  for (auto &function : module) {
+    if (function.isDeclaration() || !function.getName().starts_with("kalandra_fn_") ||
+        function.isVarArg() || function.arg_empty() || function.arg_size() > 9 ||
+        (!function.getReturnType()->isIntegerTy() &&
+         !function.getReturnType()->isFloatingPointTy()))
+      continue;
+    bool scalar = true;
+    for (const auto &argument : function.args())
+      if (argument.getArgNo() + 1 != function.arg_size())
+        scalar &= argument.getType()->isIntegerTy() || argument.getType()->isFloatingPointTy();
+    unsigned instructions = 0;
+    for (auto &block : function)
+      for (auto &instruction : block) {
+        ++instructions;
+        scalar &= !isa<AllocaInst>(instruction);
+      }
+    DominatorTree dominators(function);
+    LoopInfo loops(dominators);
+    // Tail-loop specialization has its own budget/proof. Do not compose the
+    // two transformations yet, or inline ownership-bearing aggregate values.
+    if (scalar && instructions <= 250 && loops.empty())
+      snapshots.emplace_back(&function, nullptr);
+  }
+  for (auto &[function, snapshot] : snapshots) {
+    ValueToValueMapTy values;
+    snapshot = CloneFunction(function, values);
+    bodies.emplace(function, snapshot);
+  }
+  for (auto [function, snapshot] : snapshots) {
+    ValueToValueMapTy values;
+    auto *candidate = CloneFunction(snapshot, values);
+    SmallVector<CallInst *, 4> calls;
+    for (auto &block : *candidate)
+      for (auto &instruction : block)
+        if (auto *call = dyn_cast<CallInst>(&instruction);
+            call && bodies.contains(call->getCalledFunction()) && calls.size() < 4)
+          calls.push_back(call);
+    bool changed = false;
+    for (auto *call : calls) {
+      auto *original = call->getCalledFunction();
+      call->setCalledFunction(bodies.at(original));
+      InlineFunctionInfo info;
+      if (InlineFunction(*call, info).isSuccess())
+        changed = true;
+      else
+        call->setCalledFunction(original);
+    }
+    if (changed) {
+      simplifyCheckedStackIR(*candidate);
+      if (!nativeStackBudgetError(*candidate, DataLayout(nativeCpuDataLayout))) {
+        const auto linkage = function->getLinkage();
+        function->deleteBody();
+        function->copyAttributesFrom(candidate);
+        function->setLinkage(linkage);
+        for (auto &argument : candidate->args())
+          argument.replaceAllUsesWith(function->getArg(argument.getArgNo()));
+        function->splice(function->begin(), candidate);
+      }
+    }
+    candidate->eraseFromParent();
+  }
+  for (auto [function, snapshot] : snapshots)
+    snapshot->eraseFromParent();
+}
 } // namespace
 // Apply after bufferization/LLVM translation, so allocations and clones
 // introduced by ownership lowering receive the same checked convention too.
@@ -455,6 +525,7 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
                            "kalandra_string_slice"})
     if (auto *old = module.getFunction(name); old && old->use_empty())
       old->eraseFromParent();
+  inlineCheckedScalarCalls(module);
   defineNativeFastABI(module);
   return std::nullopt;
 }

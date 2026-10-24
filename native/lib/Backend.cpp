@@ -1051,12 +1051,13 @@ private:
     if (denseRight) {
       auto cell = output.getElementType();
       auto dynamicLayout = StridedLayoutAttr::get(builder_.getContext(), ShapedType::kDynamic,
-                                                 {ShapedType::kDynamic, ShapedType::kDynamic});
-      auto dynamicType = MemRefType::get({ShapedType::kDynamic, ShapedType::kDynamic}, cell, dynamicLayout);
+                                                  {ShapedType::kDynamic, ShapedType::kDynamic});
+      auto dynamicType =
+          MemRefType::get(cast<RankedTensorType>(b.getType()).getShape(), cell, dynamicLayout);
       auto buffer = bufferization::ToBufferOp::create(builder_, loc, dynamicType, b, true);
       auto metadata = memref::ExtractStridedMetadataOp::create(builder_, loc, buffer);
       auto layout = StridedLayoutAttr::get(builder_.getContext(), ShapedType::kDynamic,
-                                          {ShapedType::kDynamic, 1});
+                                           {ShapedType::kDynamic, 1});
       auto type = MemRefType::get({ShapedType::kDynamic, ShapedType::kDynamic}, cell, layout);
       denseBuffer = memref::ReinterpretCastOp::create(
           builder_, loc, type, metadata.getSource(), metadata.getOffset(),
@@ -1367,10 +1368,11 @@ private:
       // general/non-contiguous layouts retain their original descriptor meaning.
       auto layout = StridedLayoutAttr::get(builder_.getContext(), ShapedType::kDynamic,
                                           {ShapedType::kDynamic, ShapedType::kDynamic});
-      auto bufferType = MemRefType::get({ShapedType::kDynamic, ShapedType::kDynamic},
-                                      output.getElementType(), layout);
-      auto buffer = bufferization::ToBufferOp::create(builder_, loc, bufferType,
-                                                     helper.getArgument(1), true);
+      auto bufferType =
+          MemRefType::get(cast<RankedTensorType>(helper.getArgument(1).getType()).getShape(),
+                          output.getElementType(), layout);
+      auto buffer =
+          bufferization::ToBufferOp::create(builder_, loc, bufferType, helper.getArgument(1), true);
       auto metadata = memref::ExtractStridedMetadataOp::create(builder_, loc, buffer);
       Value dense = compare(loc, arith::CmpIPredicate::eq, metadata.getStrides()[1], index(loc, 1));
       auto rows = tensor::DimOp::create(builder_, loc, helper.getArgument(0), index(loc, 0));
@@ -1606,7 +1608,8 @@ private:
           continue;
         auto layout = StridedLayoutAttr::get(builder_.getContext(), ShapedType::kDynamic,
                                              {ShapedType::kDynamic});
-        auto bufferType = MemRefType::get({ShapedType::kDynamic}, cell, layout);
+        auto bufferType = MemRefType::get(
+            cast<RankedTensorType>(values.at(id).getType()).getShape(), cell, layout);
         auto buffer =
             bufferization::ToBufferOp::create(builder_, loc, bufferType, values.at(id), true);
         auto metadata = memref::ExtractStridedMetadataOp::create(builder_, loc, buffer);

@@ -83,6 +83,16 @@ fn main()->int ! TaskError:
     result=spawn work()
     try await result
 """, "42")]
+        for numeric in ("float32", "float64"):
+            cases += [(f"{numeric} static matrix product", f"""fn main()->{numeric}:
+  a:Tensor[{numeric},1,2]=tensor([[2,3]])
+  b:Tensor[{numeric},2,1]=tensor([[4],[5]])
+  reduceSum(matmul(a,b))
+""", "23"),
+                      (f"{numeric} static fused reduction", f"""fn main()->{numeric}:
+  a:Tensor[{numeric},3]=tensor([1,2,3])
+  reduceSum(a*3+1)
+""", "21")]
         compiled = 0
         for mode, flags in modes:
             for name, text, expected in cases:
