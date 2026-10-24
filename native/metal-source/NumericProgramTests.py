@@ -35,7 +35,7 @@ def check(name,case,body,expected,*,rank=1,scale=0,empty=False,tensor=False,extr
             ('    try await transfer(answer,devices.cpu())\n' if tensor else '    answer\n'))
     path,destination=args.root/f'{name}-{case}.k',args.root/f'{name}-{case}'
     path.write_text(source)
-    built=subprocess.run(list(map(str,[args.compiler,path,*flags,'-o',destination])),capture_output=True,text=True,timeout=180)
+    built=subprocess.run(list(map(str,[args.compiler,"--arithmetic","software",path,*flags,'-o',destination])),capture_output=True,text=True,timeout=180)
     assert built.returncode==0,(path,built.returncode,built.stdout,built.stderr)
     if args.variant:
         def bits(v):return int.from_bytes(struct.pack('<f' if width==32 else '<d',v),'little') if target.startswith('float') else v & ((1<<width)-1)

@@ -101,7 +101,7 @@ def main():
                     (destination / 'host.cpp').write_text('existing host sentinel')
                     (destination / 'kernel0.mlir').write_text('existing shader sentinel')
                     saved = {p.name: p.read_bytes() for p in destination.iterdir()}
-                emitted = run([args.compiler, source, '-o', destination])
+                emitted = run([args.compiler,"--arithmetic","software", source, '-o', destination])
                 if row['status'] == 'supported':
                     assert emitted.returncode == 0, (fixture, emitted.stdout, emitted.stderr)
                     for name in ('host.cpp', 'placement.ir', 'continuation.plan', 'manifest.txt'):
@@ -191,7 +191,7 @@ def main():
                         assert row['message'] in emitted.stderr, (fixture, emitted.stderr)
                     assert saved == {p.name: p.read_bytes() for p in destination.iterdir()}, fixture
                     fresh = work / f"{row['id']}-{index}-fresh"
-                    rejected = run([args.compiler, source, '-o', fresh])
+                    rejected = run([args.compiler,"--arithmetic","software", source, '-o', fresh])
                     assert rejected.returncode == 1 and not fresh.exists(), (fixture, rejected.stderr)
                     assert re.search(r'error\[' + row['diagnostic'] + r'\]', rejected.stderr)
                     if 'message' in row:

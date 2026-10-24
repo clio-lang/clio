@@ -7,8 +7,10 @@
 #include "mlir/Parser/Parser.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include <string_view>
 int main(int argc, char **argv) {
-  if (argc != 3) {
+  if (argc != 3 && !(argc == 4 && (std::string_view(argv[3]) == "--hardware" ||
+                                   std::string_view(argv[3]) == "--allow-software-fallback"))) {
     llvm::errs() << "usage: " << argv[0] << " <input.mlir> <output.mlir>\n";
     return 2;
   }
@@ -18,12 +20,17 @@ int main(int argc, char **argv) {
   auto module = mlir::parseSourceFile<mlir::ModuleOp>(argv[1], &context);
   if (!module || mlir::failed(mlir::verify(*module)))
     return 1;
+  if (argc == 4) {
+    if (mlir::failed(kalandra::lowerMetalHardwareFloat(*module, std::string_view(argv[3]) ==
+                                                                    "--allow-software-fallback")))
+      return 1;
+  } else
 #if defined(KALANDRA_STRICT_GPU64)
-  if (mlir::failed(kalandra::lowerStrictGpuFloat64(*module)))
+      if (mlir::failed(kalandra::lowerStrictGpuFloat64(*module)))
 #elif defined(KALANDRA_STRICT_CPU)
-  if (mlir::failed(kalandra::lowerStrictCpuFloat(*module)))
+      if (mlir::failed(kalandra::lowerStrictCpuFloat(*module)))
 #else
-  if (mlir::failed(kalandra::lowerStrictFloat32(*module)))
+      if (mlir::failed(kalandra::lowerStrictFloat32(*module)))
 #endif
     return 1;
   bool hasGpu = false;

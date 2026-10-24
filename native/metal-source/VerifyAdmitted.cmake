@@ -3,7 +3,7 @@
 function(admit_case NAME SOURCE)
   file(WRITE "${ROOT}/${NAME}-admitted.k" "${SOURCE}")
   set(DEST "${OUTPUT_DIR}/${NAME}-admitted")
-  execute_process(COMMAND "${COMPILER}" "${ROOT}/${NAME}-admitted.k" -o "${DEST}"
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${ROOT}/${NAME}-admitted.k" -o "${DEST}"
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR TIMEOUT 90)
   if(NOT STATUS EQUAL 0 OR NOT EXISTS "${DEST}/kernel0.mlir")
     message(FATAL_ERROR "${NAME}: typed program admission failed: ${STATUS}: ${ERROR}")

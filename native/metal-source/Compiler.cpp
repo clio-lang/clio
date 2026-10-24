@@ -53,6 +53,8 @@ struct Value {
   NumericType element = NumericType::Float32;
 };
 class Compiler {
+  ArithmeticMode arithmetic_;
+  bool testCpuExports_;
   Module syntax;
   std::map<std::string, std::size_t> cpuFunctions;
   TypedModule cpu;
@@ -106,9 +108,27 @@ class Compiler {
       supported(fn.resultType);
       for (auto parameter : fn.parameters)
         supported(cpu.symbols[parameter].type);
-      for (auto value : fn.expressions)
-        if (auto *call = std::get_if<FunctionCall>(&cpu.expressions[value].operation))
+      for (auto value : fn.expressions) {
+        const auto &expression = cpu.expressions[value];
+        const auto &op = expression.operation;
+        if (auto *call = std::get_if<FunctionCall>(&op))
           pending.push_back(call->function);
+        if (arithmetic_ != ArithmeticMode::Hardware)
+          continue;
+        bool requiresDouble =
+            expression.type.element == NumericType::Float64 &&
+            (std::holds_alternative<ScalarBinary>(op) || std::holds_alternative<TensorBinary>(op) ||
+             std::holds_alternative<ScalarUnary>(op) || std::holds_alternative<TensorUnary>(op) ||
+             std::holds_alternative<Matmul>(op) || std::holds_alternative<ReduceSum>(op));
+        if (auto *cast = std::get_if<NumericConvert>(&op))
+          requiresDouble |= expression.type.element == NumericType::Float64 ||
+                            cpu.expressions[cast->input].type.element == NumericType::Float64;
+        if (auto *compare = std::get_if<ScalarCompare>(&op))
+          requiresDouble |= cpu.expressions[compare->left].type.element == NumericType::Float64;
+        if (requiresDouble)
+          reject(expression.span, "Metal has no hardware float64 arithmetic; explicitly select "
+                                  "--arithmetic hardware-with-software-fallback or software");
+      }
     }
   }
 
@@ -1337,10 +1357,11 @@ class Compiler {
   }
   Value spawnNumericProgram(FunctionId function, const std::vector<Value> &inputs, Value target,
                             SourceSpan span) {
+    admitGpuTypes(function);
     const auto &fn = cpu.functions.at(function);
     auto found = numericPrograms.find(function);
     if (found == numericPrograms.end()) {
-      auto program = emitNumericProgram(cpu, function);
+      auto program = emitNumericProgram(cpu, function, arithmetic_);
       if (!program)
         throw Rejected{program.error()};
       found = numericPrograms.emplace(function, std::move(*program)).first;
@@ -1486,12 +1507,13 @@ class Compiler {
   }
   Value spawnNumeric(FunctionId function, const std::vector<Value> &inputs, Value target,
                      SourceSpan span) {
+    admitGpuTypes(function);
     const auto &fn = cpu.functions.at(function);
     if (numericPrograms.contains(function))
       return spawnNumericProgram(function, inputs, target, span);
     auto found = numericShaders.find(function);
     if (found == numericShaders.end()) {
-      auto shader = emitNumericShader(cpu, function);
+      auto shader = emitNumericShader(cpu, function, {.arithmetic = arithmetic_});
       if (!shader)
         return spawnNumericProgram(function, inputs, target, span);
       found = numericShaders.emplace(function, std::move(*shader)).first;
@@ -1647,7 +1669,8 @@ class Compiler {
     }
     bool selectedProgram = false;
     if ((conditional || primitive) && !matrixGraph(function) && !primitiveEntry(function))
-      selectedProgram = primitive || !emitNumericShader(cpu, function).has_value();
+      selectedProgram =
+          primitive || !emitNumericShader(cpu, function, {.arithmetic = arithmetic_}).has_value();
     // A legacy graph may recognize the primitives while its fused map cannot
     // prove branch-local shapes. Preflight those maps before generating host
     // state so the selected-stage program can carry the actual obligations.
@@ -3145,8 +3168,8 @@ class Compiler {
     const bool indirect = (graph && scalarControl(function)) ||
                           retainedChoiceBindings(function, used.size()) ||
                           !kalandra::runtime::metal::directElementwiseLayout(used.size(), scalars);
-    const bool legacy =
-        !graph && !indirect && tensors == 2 && scalars == 0 && used.size() == tensors;
+    const bool legacy = !graph && !reduction(function) && !indirect && tensors == 2 &&
+                        scalars == 0 && used.size() == tensors;
     auto parameters = "memref<" + std::to_string(legacy ? 2 : scalars + 1) + "xi32>";
     std::string bindings, loads;
     for (auto input : used) {
@@ -3192,7 +3215,8 @@ class Compiler {
   }
 
 public:
-  explicit Compiler(Module module) : syntax(std::move(module)) {}
+  explicit Compiler(Module module, ArithmeticMode arithmetic, bool testCpuExports)
+      : arithmetic_(arithmetic), testCpuExports_(testCpuExports), syntax(std::move(module)) {}
   std::map<std::string, std::string> run() {
     auto checkedPlacement = kalandra::check({syntax, {}}, {}, {.placement = true});
     if (!checkedPlacement.ok())
@@ -3447,12 +3471,12 @@ public:
       if (!parsed || mlir::failed(mlir::verify(*parsed)))
         reject(fn.span, "generated GPU IR failed verification");
     }
-    if (!usedCpuFunctions.empty()) {
+    if (testCpuExports_ || !usedCpuFunctions.empty()) {
       auto exports = cpuExports;
       for (std::size_t i = 0; i < exports.size(); ++i)
-        if (!usedCpuFunctions.contains(i))
+        if (!testCpuExports_ && !usedCpuFunctions.contains(i))
           exports[i].clear();
-      auto lowered = lowerNative(cpu, {}, exports);
+      auto lowered = lowerNative(cpu, {}, exports, arithmetic_);
       if (!lowered)
         reject(fn.span, lowered.error());
       outputs["cpu.mlir"] = lowered->mlir;
@@ -3755,6 +3779,7 @@ void resume(Task &task) {
                   "scalars=" + std::to_string(scalars) + "\n" + prefix + "source_order=" + order +
                   "\n";
     }
+    manifest += "arithmetic=" + std::string(arithmeticModeName(arithmetic_)) + "\n";
     outputs["manifest.txt"] = std::move(manifest);
     return outputs;
   }
@@ -3764,11 +3789,14 @@ int kalandra::compileMetalCommand(int argc, char **argv) {
   const auto usage = [] {
     std::cerr << "usage: kalandra-metal-source <source.k | --project "
                  "manifest.toml> -o directory "
+                 "[--arithmetic hardware|software|hardware-with-software-fallback] "
                  "[--package name=path.k ...] [--build "
                  "[-O0|-O2|--sanitize|--thread-sanitize]]\n";
     return 2;
   };
-  bool build = false;
+  bool build = false, testCpuExports = false;
+  ArithmeticMode arithmetic = ArithmeticMode::Hardware;
+  bool selectedArithmetic = false;
   std::string variant = "debug", sourcePath, projectPath;
   std::filesystem::path directory;
   std::optional<NativeProject> project;
@@ -3795,6 +3823,16 @@ int kalandra::compileMetalCommand(int argc, char **argv) {
         }
         packages.push_back(std::move(*package));
       }
+    } else if (option == "--arithmetic" && !selectedArithmetic) {
+      if (++i >= argc)
+        return usage();
+      auto parsed = parseArithmeticMode(argv[i]);
+      if (!parsed)
+        return usage();
+      arithmetic = *parsed;
+      selectedArithmetic = true;
+    } else if (option == "--test-cpu-exports" && !testCpuExports) {
+      testCpuExports = true;
     } else if (option == "--build" && !build)
       build = true;
     else if (!selected && (option == "-O0" || option == "-O2" || option == "--sanitize" ||
@@ -3846,7 +3884,7 @@ int kalandra::compileMetalCommand(int argc, char **argv) {
         std::cerr << renderDiagnostic(*source, d);
       return 1;
     }
-    auto outputs = Compiler(std::move(parsed->module)).run();
+    auto outputs = Compiler(std::move(parsed->module), arithmetic, testCpuExports).run();
     if (outputs.contains("cpu.ll") && (variant == "sanitized" || variant == "thread-sanitized")) {
       llvm::LLVMContext context;
       llvm::SMDiagnostic diagnostic;
@@ -3916,7 +3954,7 @@ int kalandra::compileMetalCommand(int argc, char **argv) {
       std::filesystem::rename(std::string(temporary), target);
     }
     if (build)
-      buildMetalProgram(directory, outputs, variant);
+      buildMetalProgram(directory, outputs, variant, arithmetic);
     return 0;
   } catch (const Rejected &e) {
     std::cerr << renderDiagnostic(*source, e.diagnostic);

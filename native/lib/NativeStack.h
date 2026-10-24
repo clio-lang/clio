@@ -11,8 +11,9 @@ namespace kalandra {
 // register allocation or stack-slot reuse. Keep margin below runtime headroom.
 inline std::optional<std::string> nativeStackBudgetError(const llvm::Function &function,
                                                          const llvm::DataLayout &layout,
-                                                         bool numericLeaf = false) {
-  constexpr std::uint64_t budget = 16 * 1024;
+                                                         bool numericLeaf = false,
+                                                         std::uint64_t reservedBytes = 0) {
+  const std::uint64_t budget = 16 * 1024 - reservedBytes;
   std::uint64_t total = 0;
   const auto account = [&](llvm::Type *type, std::uint64_t count = 1) {
     if (type->isVoidTy())

@@ -79,11 +79,13 @@ constexpr std::optional<Format> storageFormat(NumericType element) {
   }
 }
 struct Options {
+  bool profile = false;
   std::uint64_t maxBytes = 64 * 1024 * 1024;
   std::uint32_t maxInFlight = 64, defaultDevice = 0;
   std::uint64_t maxArgumentBytes = 1024 * 1024;
 };
 struct Stats {
+  std::uint64_t gpuNanoseconds = 0, encodingNanoseconds = 0, dispatches = 0;
   std::uint64_t bytes = 0, peakBytes = 0, hostBackings = 0, deviceBackings = 0;
   std::uint64_t metalBuffers = 0, stagingBuffers = 0, inFlight = 0;
   std::uint64_t submissions = 0, completions = 0, attempts = 0;

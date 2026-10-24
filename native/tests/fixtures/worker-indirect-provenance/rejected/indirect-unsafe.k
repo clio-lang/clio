@@ -3,16 +3,14 @@ fn double(value:int)->int:
 fn apply(value:int,f:fn(int)->int)->int:
   f(value)
 type Outcome:
-  error:TaskError
-fn unsafe(error:TaskError)->fn(int)->int:
+  error:fn(int)->int
+fn unsafe(error:fn(int)->int)->fn(int)->int:
   outcome=Outcome {error:error}
   fn(value:int):
-    match outcome.error:
-      TaskError.Fault {kind}:value
-      _:0
+    outcome.error(value)
 fn identity(f:fn(int)->int)->fn(int)->int:
   f
-fn consume(error:TaskError)->int ! TaskError:
+fn consume(error:fn(int)->int)->int ! TaskError:
   factory=identity
   f=factory(unsafe(error))
   try parallel:

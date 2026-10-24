@@ -8,6 +8,7 @@
 #include <array>
 #include <atomic>
 #include <bit>
+#include <chrono>
 #include <condition_variable>
 #include <cstring>
 #include <exception>
@@ -24,6 +25,7 @@
 namespace kalandra::runtime::metal {
 struct State {
   Options options;
+  std::atomic<std::uint64_t> gpuNanoseconds{0}, encodingNanoseconds{0}, dispatches{0};
   NSArray<id<MTLDevice>> *devices;
   NSArray<id<MTLCommandQueue>> *queues;
   std::vector<std::string> names;
@@ -119,6 +121,7 @@ struct KernelState {
   std::optional<NumericType> numericType{};
   std::vector<NumericType> tensorTypes{}, scalarTypes{};
   std::vector<std::uint8_t> scalarBuffers{};
+  id<MTLComputePipelineState> blockReduction = nil, tiledMatrix = nil, block32Matrix = nil;
   bool scalarBuffer(std::size_t i) const { return !scalarBuffers.empty() && scalarBuffers[i]; }
   NumericType tensorType(std::size_t i) const {
     return tensorTypes.empty() ? *numericType : tensorTypes[i];
@@ -814,7 +817,9 @@ struct Bridge {
   struct Frame {
     PacketData packet;
     Buffer result;
-    Buffer matrixLeft{}, matrixRight{};
+    Buffer matrixLeft{}, matrixRight{}, combinedSource{};
+    Kernel combinedKernel{};
+    std::shared_ptr<MetalAllocation> combinedParameters;
     Kernel matrixKernel{}, graphKernel{};
     std::size_t graphStage = 0, reductionStage = 0;
     unsigned graphPhase = 0;
@@ -1003,6 +1008,8 @@ struct Bridge {
       [encoder setBuffer:input offset:0 atIndex:0];
       [encoder setBuffer:output offset:0 atIndex:1];
       [encoder setBuffer:f.scratch->counts[level]->buffer offset:0 atIndex:2];
+      if (state->options.profile)
+        ++state->dispatches;
       [encoder dispatchThreadgroups:MTLSizeMake((next + 63) / 64, 1, 1)
               threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
       [encoder endEncoding];
@@ -1031,7 +1038,7 @@ struct Bridge {
       return nil;
     return command;
   }
-  static id<MTLCommandBuffer> reductionCommand(Frame &f) {
+  static id<MTLCommandBuffer> reductionCommand(Frame &f, id<MTLCommandBuffer> incoming = nil) {
     auto state = f.packet.state;
     auto index = f.packet.kernel.state_->index;
     if (!state->permit())
@@ -1056,7 +1063,8 @@ struct Bridge {
       }
       f.staging = *readback;
     }
-    id<MTLCommandBuffer> command = state->permit() ? [state->queues[index] commandBuffer] : nil;
+    id<MTLCommandBuffer> command =
+        incoming ? incoming : (state->permit() ? [state->queues[index] commandBuffer] : nil);
     if (!command)
       return nil;
     std::uint64_t length = f.packet.input.bytes() / 4;
@@ -1108,8 +1116,10 @@ struct Bridge {
       length = 1;
     }
     const bool packedCounts = [state->devices[index] supportsFamily:MTLGPUFamilyApple1];
+    const auto blockPipeline = f.packet.kernel.state_->blockReduction;
+    const std::uint64_t divisor = blockPipeline ? 128 : 2;
     unsigned levels = 0;
-    for (auto remaining = length; remaining > 1; remaining = (remaining + 1) / 2)
+    for (auto remaining = length; remaining > 1; remaining = (remaining + divisor - 1) / divisor)
       ++levels;
     if (levels && packedCounts) {
       // Apple-family constant buffer offsets permit four-byte alignment. Each
@@ -1124,7 +1134,7 @@ struct Bridge {
     }
     unsigned level = 0;
     while (length > 1) {
-      const auto next = (length + 1) / 2;
+      const auto next = (length + divisor - 1) / divisor;
       auto &output = f.scratch->outputs[level % 2];
       if (!output) {
         auto allocated = allocateMetal(state, index, next * 4, false);
@@ -1160,17 +1170,20 @@ struct Bridge {
                           : nil;
       if (!encoder)
         return nil;
-      [encoder setComputePipelineState:f.packet.kernel.state_->pipeline];
+      [encoder
+          setComputePipelineState:blockPipeline ? blockPipeline : f.packet.kernel.state_->pipeline];
       length = f.packet.input.bytes() / 4;
       for (unsigned i = 0; i < level; ++i) {
-        const auto next = (length + 1) / 2;
+        const auto next = (length + divisor - 1) / divisor;
         const auto &output = f.scratch->outputs[i % 2];
         [encoder setBuffer:input offset:0 atIndex:0];
         [encoder setBuffer:output->buffer offset:0 atIndex:1];
         [encoder setBuffer:f.scratch->counts[packedCounts ? 0 : i]->buffer
                     offset:packedCounts ? i * 4 : 0
                    atIndex:2];
-        [encoder dispatchThreadgroups:MTLSizeMake((next + 63) / 64, 1, 1)
+        if (state->options.profile)
+          ++state->dispatches;
+        [encoder dispatchThreadgroups:MTLSizeMake(blockPipeline ? next : (next + 63) / 64, 1, 1)
                 threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
         input = output->buffer;
         length = next;
@@ -1186,6 +1199,8 @@ struct Bridge {
       [encoder setBuffer:input offset:0 atIndex:0];
       [encoder setBuffer:f.scratch->postOutput->buffer offset:0 atIndex:1];
       [encoder setBuffer:f.scratch->postParameters->buffer offset:0 atIndex:2];
+      if (state->options.profile)
+        ++state->dispatches;
       [encoder dispatchThreadgroups:MTLSizeMake(1, 1, 1)
               threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
       [encoder endEncoding];
@@ -1903,6 +1918,8 @@ struct Bridge {
           }
         } while (!state->inFlight.compare_exchange_weak(count, count + 1));
         f.active = true;
+        const auto encodingStart = state->options.profile ? std::chrono::steady_clock::now()
+                                                          : std::chrono::steady_clock::time_point{};
         id<MTLCommandBuffer> command = nil;
         if (reduce) {
           f.error = Error::Allocation;
@@ -2034,6 +2051,11 @@ struct Bridge {
             auto pipeline = layout == MatmulLayout::Rows2  ? kernel->matrixTiles[0]
                             : layout == MatmulLayout::Quad ? kernel->matrixTiles[1]
                                                            : kernel->pipeline;
+            const bool hardwareTile = matrix && kernel->tiledMatrix && layout != MatmulLayout::Quad;
+            if (hardwareTile)
+              pipeline = kernel->block32Matrix && source->dimensions[1] >= 256 &&
+                                 source->dimensions[1] % 32 == 0
+                             ? kernel->block32Matrix : kernel->tiledMatrix;
             [encoder setComputePipelineState:pipeline];
             if (!kernel->indirect()) {
               [encoder setBuffer:(matrix || kernel->numericType) && !source->size
@@ -2092,10 +2114,14 @@ struct Bridge {
               [encoder setBuffer:f.resources->buffer offset:0 atIndex:0];
             } else
               [encoder setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
-            const auto lanes = matrix ? matmulWorkItems(layout, parameters[0], parameters[2])
-                               : kernel->numericType
-                                   ? std::max(UINT64_C(1), std::uint64_t(parameters[0]))
-                                   : std::uint64_t(parameters[0]);
+            const auto lanes =
+                matrix && kernel->tiledMatrix ? ((std::uint64_t(parameters[0]) + 7) / 8) *
+                                                    ((std::uint64_t(parameters[2]) + 7) / 8) * 64
+                : matrix              ? matmulWorkItems(layout, parameters[0], parameters[2])
+                : kernel->numericType ? std::max(UINT64_C(1), std::uint64_t(parameters[0]))
+                                      : std::uint64_t(parameters[0]);
+            if (state->options.profile)
+              ++state->dispatches;
             [encoder dispatchThreadgroups:MTLSizeMake((lanes + 63) / 64, 1, 1)
                     threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
             [encoder endEncoding];
@@ -2168,6 +2194,27 @@ struct Bridge {
             }
           }
         }
+        // A pure hardware map/matrix followed by a sum has no observable host
+        // boundary. Encode the reduction into the same command, retaining every
+        // original resource and its budget reservation through acknowledgement.
+        if ((compute || matrix) && f.packet.reduction.state_ &&
+            f.packet.reduction.state_->blockReduction && !f.packet.kernel.state_->numericType &&
+            !f.packet.graph && !f.packet.numericProgram && !f.packet.matrixPost &&
+            !f.packet.epilogue && !f.matrixStage) {
+          f.combinedSource = std::move(f.packet.input);
+          f.combinedKernel = std::move(f.packet.kernel);
+          f.combinedParameters = std::move(f.staging);
+          f.packet.input = std::move(f.result);
+          f.packet.kernel = std::move(f.packet.reduction);
+          f.packet.kind = Kind::Reduce;
+          f.error = Error::Allocation;
+          command = reductionCommand(f, command);
+          if (!command) {
+            task.fault(std::int64_t(f.error));
+            return;
+          }
+        }
+        f.error = Error::Device;
         auto completion = task.suspendExternal();
         if (!completion)
           return;
@@ -2185,6 +2232,10 @@ struct Bridge {
               std::unique_lock lock(frame->packet.state->gateMutex);
               frame->packet.state->gate.wait(lock, [&] { return !frame->packet.state->hold; });
             }
+            if (frame->packet.state->options.profile &&
+                finished.GPUEndTime >= finished.GPUStartTime)
+              frame->packet.state->gpuNanoseconds +=
+                  std::uint64_t((finished.GPUEndTime - finished.GPUStartTime) * 1e9);
             frame->succeeded = finished.status == MTLCommandBufferStatusCompleted &&
                                !frame->packet.state->failCompletion.exchange(false);
             ++frame->packet.state->completions;
@@ -2197,6 +2248,10 @@ struct Bridge {
 #if __has_feature(thread_sanitizer)
         __tsan_release((__bridge void *)command);
 #endif
+        if (state->options.profile)
+          state->encodingNanoseconds += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                            std::chrono::steady_clock::now() - encodingStart)
+                                            .count();
         [command commit];
         return;
       }
@@ -2637,6 +2692,26 @@ std::expected<Kernel, Error> Runtime::loadKernel(
       Kernel kernel;
       auto metadata = std::make_shared<KernelState>(state_, device.index_, pipeline, elementwise,
                                                     reduction, matrix, signature, matrixTiles);
+      if (!numericType && reduction &&
+          [library newFunctionWithName:@"kalandra_reduce_sum_hardware_block"]) {
+        auto block = prepare(@"kalandra_reduce_sum_hardware_block");
+        if (!block)
+          return std::unexpected(block.error());
+        metadata->blockReduction = *block;
+      }
+      if (!numericType && matrix &&
+          [library newFunctionWithName:@"kalandra_matmul_hardware_tiled"]) {
+        auto tiled = prepare(@"kalandra_matmul_hardware_tiled");
+        if (!tiled)
+          return std::unexpected(tiled.error());
+        metadata->tiledMatrix = *tiled;
+        if ([library newFunctionWithName:@"kalandra_matmul_hardware_block32"]) {
+          auto block32 = prepare(@"kalandra_matmul_hardware_block32");
+          if (!block32)
+            return std::unexpected(block32.error());
+          metadata->block32Matrix = *block32;
+        }
+      }
       metadata->numericType = numericType;
       if (!scalarBuffers.empty()) {
         if (!state_->permit())
@@ -3294,10 +3369,11 @@ TaskHandle Runtime::numericElementwise(Task &task, GroupHandle group, Kernel ker
 }
 const ValueLayout &Runtime::bufferLayout() noexcept { return Bridge::layout; }
 Stats Runtime::stats() const noexcept {
-  return {state_->bytes,          state_->peakBytes,     state_->hostBackings,
-          state_->deviceBackings, state_->metalBuffers,  state_->stagingBuffers,
-          state_->inFlight,       state_->submissions,   state_->completions,
-          state_->attempts,       state_->argumentBytes, state_->peakArgumentBytes,
+  return {state_->gpuNanoseconds, state_->encodingNanoseconds, state_->dispatches,
+          state_->bytes,          state_->peakBytes,           state_->hostBackings,
+          state_->deviceBackings, state_->metalBuffers,        state_->stagingBuffers,
+          state_->inFlight,       state_->submissions,         state_->completions,
+          state_->attempts,       state_->argumentBytes,       state_->peakArgumentBytes,
           state_->argumentPacks};
 }
 void Runtime::failAllocationAt(std::uint64_t attempt) noexcept {

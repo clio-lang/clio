@@ -15,6 +15,7 @@ struct Ref {
   std::optional<std::uint32_t> buffer{};
 };
 class Builder {
+  ArithmeticMode arithmetic_;
   const TypedModule &input;
   const TypedFunction &root;
   TypedModule normalized;
@@ -126,6 +127,7 @@ class Builder {
         reject(root.declaration, "unbound numerical program capture");
     }
     NumericShaderOptions options;
+    options.arithmetic = arithmetic_;
     options.boolResult = ref.type.builtin == BuiltinValue::Bool;
     std::vector<std::uint8_t> roles;
     NumericProgramInstruction instruction{NumericProgramKind::Map};
@@ -206,7 +208,7 @@ class Builder {
     fn.result = expression(std::move(node));
     const auto id = normalized.functions.size();
     normalized.functions.push_back(std::move(fn));
-    auto shader = emitNumericShader(normalized, id);
+    auto shader = emitNumericShader(normalized, id, {.arithmetic = arithmetic_});
     if (!shader)
       throw Rejected{shader.error()};
     if (kind == NumericProgramKind::Reduce) {
@@ -388,7 +390,8 @@ class Builder {
   }
 
 public:
-  Builder(const TypedModule &module, FunctionId id) : input(module), root(module.functions.at(id)) {
+  Builder(const TypedModule &module, FunctionId id, ArithmeticMode arithmetic)
+      : arithmetic_(arithmetic), input(module), root(module.functions.at(id)) {
     normalized.source = input.source;
   }
   NumericProgram run(FunctionId id) {
@@ -413,10 +416,10 @@ public:
   }
 };
 } // namespace
-std::expected<NumericProgram, Diagnostic> emitNumericProgram(const TypedModule &input,
-                                                             FunctionId function) {
+std::expected<NumericProgram, Diagnostic>
+emitNumericProgram(const TypedModule &input, FunctionId function, ArithmeticMode arithmetic) {
   try {
-    return Builder(input, function).run(function);
+    return Builder(input, function, arithmetic).run(function);
   } catch (const Rejected &error) {
     return std::unexpected(error.diagnostic);
   }

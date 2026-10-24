@@ -10,7 +10,7 @@ target_compile_definitions(kalandra PRIVATE KALANDRA_HAS_METAL_SOURCE=1)
 function(add_source_fixture FIXTURE)
 set(GENERATED "${CMAKE_CURRENT_BINARY_DIR}/${FIXTURE}")
 add_custom_command(OUTPUT "${GENERATED}/host.cpp" "${GENERATED}/placement.ir" "${GENERATED}/continuation.plan" "${GENERATED}/kernel0.mlir" "${GENERATED}/manifest.txt"
-  COMMAND $<TARGET_FILE:kalandra-metal-source> "${CMAKE_CURRENT_SOURCE_DIR}/${FIXTURE}.k" -o "${GENERATED}"
+  COMMAND $<TARGET_FILE:kalandra-metal-source> --test-cpu-exports --arithmetic software "${CMAKE_CURRENT_SOURCE_DIR}/${FIXTURE}.k" -o "${GENERATED}"
   DEPENDS kalandra-metal-source "${FIXTURE}.k" VERBATIM)
 # Use the same pinned toolchain and strict integer lowering as the numerical proof.
 file(READ "${PROJECT_SOURCE_DIR}/native/metal-proof/toolchain.json" SOURCE_LOCK)
@@ -237,7 +237,7 @@ if(BUILD_TESTING)
       endif()
       set(MIXED_DIR "${CMAKE_CURRENT_BINARY_DIR}/${FIXTURE}-${VARIANT}")
       add_custom_command(OUTPUT "${MIXED_DIR}/host.cpp" "${MIXED_DIR}/placement.ir" "${MIXED_DIR}/continuation.plan" "${MIXED_DIR}/cpu.ll" "${MIXED_DIR}/cpu.o" "${MIXED_DIR}/kernel0.metallib"
-        COMMAND $<TARGET_FILE:kalandra-metal-source> "${CMAKE_CURRENT_SOURCE_DIR}/${FIXTURE}.k" -o "${MIXED_DIR}" --build ${MIXED_OPTION}
+        COMMAND $<TARGET_FILE:kalandra-metal-source> --test-cpu-exports --arithmetic software "${CMAKE_CURRENT_SOURCE_DIR}/${FIXTURE}.k" -o "${MIXED_DIR}" --build ${MIXED_OPTION}
         COMMAND "${CMAKE_CXX_COMPILER}" -Wno-override-module -ffp-contract=off ${MIXED_FLAGS} -c "${MIXED_DIR}/cpu.ll" -o "${MIXED_DIR}/cpu.o"
         DEPENDS kalandra-metal-source "${FIXTURE}.k" VERBATIM)
       set_source_files_properties("${MIXED_DIR}/cpu.o" PROPERTIES GENERATED TRUE EXTERNAL_OBJECT TRUE)
@@ -1116,4 +1116,20 @@ if(BUILD_TESTING)
     set_tests_properties(native-metal-numeric-matrix-control-cli-${VARIANT} PROPERTIES TIMEOUT 1800
       RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
   endforeach()
+endif()
+
+if(BUILD_TESTING)
+  add_test(NAME native-metal-arithmetic-policy
+    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/native/tests/ArithmeticPolicyTests.py"
+      --compiler "$<TARGET_FILE:kalandra>" --output "${CMAKE_CURRENT_BINARY_DIR}/arithmetic-policy" --gpu)
+  set_tests_properties(native-metal-arithmetic-policy PROPERTIES TIMEOUT 300 RESOURCE_LOCK apple-metal-gpu)
+endif()
+
+if(BUILD_TESTING)
+  add_test(NAME native-metal-gpu-optimization
+    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/native/tests/GpuOptimizationTests.py"
+      --compiler "$<TARGET_FILE:kalandra>" --clang "${CMAKE_CXX_COMPILER}"
+      --output "${CMAKE_CURRENT_BINARY_DIR}/gpu-optimization")
+  set_tests_properties(native-metal-gpu-optimization PROPERTIES TIMEOUT 900
+    RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1;MTL_SHADER_VALIDATION=1")
 endif()

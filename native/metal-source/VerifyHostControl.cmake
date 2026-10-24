@@ -14,7 +14,7 @@ if(DEFINED VARIANT)
 endif()
 function(qualify NAME CONTENT EXPECTED CODE)
   file(WRITE "${OUTPUT_DIR}/src/${NAME}.k" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/src/${NAME}.k" ${TARGET_FLAGS}
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/src/${NAME}.k" ${TARGET_FLAGS}
     -o "${OUTPUT_DIR}/${NAME}" ${FLAGS} RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR TIMEOUT 90)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME} compile: ${STATUS}: ${OUT} ${ERROR}")

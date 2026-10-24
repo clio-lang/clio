@@ -1,7 +1,7 @@
 file(READ "${SOURCE_DIR}/scalar-entry.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 file(WRITE "${OUTPUT_DIR}/source.k" "${SOURCE}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/source.k" --target metal -o "${OUTPUT_DIR}/gpu" -O2
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/source.k" --target metal -o "${OUTPUT_DIR}/gpu" -O2
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Scalar GPU source failed: ${OUT} ${ERROR}")
@@ -16,7 +16,7 @@ endforeach()
 # An unused scalar retains its declared contract without requiring a resource binding.
 string(REPLACE "  values * factor" "  values" UNUSED "${SOURCE}")
 file(WRITE "${OUTPUT_DIR}/unused.k" "${UNUSED}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/unused.k" --target metal -o "${OUTPUT_DIR}/unused" -O2
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/unused.k" --target metal -o "${OUTPUT_DIR}/unused" -O2
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Unused scalar build failed: ${ERROR}")
@@ -28,7 +28,7 @@ endif()
 string(FIND "${SOURCE}" "fn main()" MAIN)
 string(SUBSTRING "${SOURCE}" 0 ${MAIN} FUNCTIONS)
 file(WRITE "${OUTPUT_DIR}/cpu.k" "${FUNCTIONS}fn main() -> float32:\n  values: Tensor[float32,3] = tensor([1,2,3])\n  reduceSum(affine(0.5,values,2))\n")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/cpu.k" -o "${OUTPUT_DIR}/cpu" -O2
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/cpu.k" -o "${OUTPUT_DIR}/cpu" -O2
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Scalar CPU source failed: ${ERROR}")
@@ -41,7 +41,7 @@ function(reject NAME CONTENT)
   file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}"
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}"
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "(G001|S0)")
     message(FATAL_ERROR "${NAME} was not rejected: ${STATUS} ${ERROR}")
@@ -60,7 +60,7 @@ reject(residency "${BAD}")
 string(REPLACE "h: float32)" "h: float32, i: float32)" BAD "${SOURCE}")
 string(REPLACE "copied, 1, 1, 1, 1, 1, 1, 1, 1)" "copied, 1, 1, 1, 1, 1, 1, 1, 1, 1)" BAD "${BAD}")
 file(WRITE "${OUTPUT_DIR}/nine-scalars.k" "${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/nine-scalars.k" --target metal
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/nine-scalars.k" --target metal
   -o "${OUTPUT_DIR}/nine-scalars" -O2 RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Ninth scalar was not accepted: ${OUT} ${ERROR}")
@@ -72,7 +72,7 @@ endif()
 string(REPLACE "fn identity(values: Tensor[float32, ?])" "fn identity(values: Tensor[float32, ?], b: Tensor[float32, ?], c: Tensor[float32, ?])" BAD "${SOURCE}")
 string(REPLACE "spawn identity(blended)" "spawn identity(blended, uploaded, uploaded)" BAD "${BAD}")
 file(WRITE "${OUTPUT_DIR}/unused-tensors.k" "${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/unused-tensors.k" --target metal
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/unused-tensors.k" --target metal
   -o "${OUTPUT_DIR}/unused-tensors" -O2 RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Unused tensors were rejected: ${ERROR}")

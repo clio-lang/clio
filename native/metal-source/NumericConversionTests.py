@@ -45,7 +45,7 @@ def check(source,target,kind='map',fault=False):
           ('    answer\n' if scalar else '    try await transfer(answer,devices.cpu())\n'))
     path,destination=args.root/f'{source}-{target}-{kind}.k',args.root/f'{source}-{target}-{kind}'
     path.write_text(text)
-    built=subprocess.run(list(map(str,[args.compiler,path,*flags,'-o',destination])),capture_output=True,text=True,timeout=120)
+    built=subprocess.run(list(map(str,[args.compiler,"--arithmetic","software",path,*flags,'-o',destination])),capture_output=True,text=True,timeout=120)
     assert built.returncode==0,(path,built.returncode,built.stdout,built.stderr)
     if args.variant:
         def bits(value):

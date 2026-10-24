@@ -267,7 +267,7 @@ fn main()->float64 ! TaskError:
         for mode, flags in (("debug", []), ("optimized", ["-O2"]),
                             ("sanitized", ["--sanitize"]), ("thread-sanitized", ["--thread-sanitize"])):
             typed_app = cwd / f"typed {numeric} {mode}"
-            run([compiler, typed_source, "--target", "metal", "-o", typed_app, *flags], cwd)
+            run([compiler, typed_source, "--target", "metal", "--arithmetic", "hardware-with-software-fallback", "-o", typed_app, *flags], cwd)
             assert run([typed_app / "program"], cwd).stdout.strip() == "4038000000000000"
             applications.append((typed_app, "4038000000000000"))
     matrix_control_source = cwd / "selected matrix shapes.k"
@@ -299,7 +299,7 @@ fn main()->Tensor[float32,?,?] ! TaskError:
     strict64_saved = strict64.read_bytes()
     strict64.unlink()
     saved_typed = (typed_app / "program").read_bytes()
-    missing64 = run([compiler, typed_source, "--target", "metal", "-o", typed_app], cwd, 1)
+    missing64 = run([compiler, typed_source, "--target", "metal", "--arithmetic", "hardware-with-software-fallback", "-o", typed_app], cwd, 1)
     assert "installed Metal resource is missing" in missing64.stderr
     assert (typed_app / "program").read_bytes() == saved_typed
     strict64.write_bytes(strict64_saved)

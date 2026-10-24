@@ -26,5 +26,6 @@ struct NumericProgram {
   std::uint32_t result;
   ValueType type;
 };
-std::expected<NumericProgram, Diagnostic> emitNumericProgram(const TypedModule &, FunctionId);
+std::expected<NumericProgram, Diagnostic>
+emitNumericProgram(const TypedModule &, FunctionId, ArithmeticMode = ArithmeticMode::Hardware);
 } // namespace kalandra

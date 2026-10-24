@@ -3,7 +3,7 @@ file(READ "${SOURCE_DIR}/matrix-pipeline.k" PIPELINE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 function(run NAME CONTENT EXPECTED FLAG)
   file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}" "${FLAG}"
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}" "${FLAG}"
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME} build failed: ${OUT} ${ERROR}")
@@ -64,7 +64,7 @@ function(reject NAME CONTENT)
   file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}"
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}"
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "(G001|S0)")
     message(FATAL_ERROR "${NAME} missing diagnostic: ${STATUS} ${ERROR}")
@@ -86,7 +86,7 @@ string(REPLACE "    remote = try await transfer(summed, devices.cpu())" "    rem
 reject(hidden-download "${BAD}")
 function(fault NAME CONTENT)
   file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}" --sanitize
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}" --sanitize
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME} must compile dynamic shapes: ${OUT} ${ERROR}")

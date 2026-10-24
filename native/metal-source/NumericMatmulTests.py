@@ -30,7 +30,7 @@ def check(name,width,label,a,b,expected,total=False,fault=False,columns=None):
             ('    answer\n' if total else '    try await transfer(answer,devices.cpu())\n'))
     path,destination=args.root/f'{name}-{label}.k',args.root/f'{name}-{label}'
     path.write_text(source)
-    built=subprocess.run(list(map(str,[args.compiler,path,*flags,'-o',destination])),capture_output=True,text=True,timeout=120)
+    built=subprocess.run(list(map(str,[args.compiler,"--arithmetic","software",path,*flags,'-o',destination])),capture_output=True,text=True,timeout=120)
     assert built.returncode==0,(path,built.stdout,built.stderr)
     if args.variant:
         def bits(value):

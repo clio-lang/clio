@@ -1,5 +1,7 @@
 # Native CPU source compilation
 
+**Current execution policy:** [Hardware arithmetic and explicit software fallback](hardware-arithmetic.md) is the default policy as of 2026-10-24. CPU float32/float64 and Metal float32 use hardware arithmetic. Metal float64 arithmetic requires explicit fallback permission. Exact-bit software proofs below describe the opt-in software implementation, not the default hardware path.
+
 Implemented first source-to-native path — 2026-10-15. The C++23 compiler now lowers the [checked IR](semantics.md) through MLIR's native C++ API, bufferization, ownership/deallocation, explicit loops, LLVM translation, and native linking. The [projection source](fixtures/cpu-projection.k) builds into an executable that prints 163.
 
 This is the float32 CPU subset on macOS ARM64. It includes the [source task subset](native-tasks.md#compiled-source-task-subset) on a bounded multi-worker CPU core. Devices, remote execution, general arrays/records, integer arithmetic, and the final application IO/runtime APIs remain pending.

@@ -36,7 +36,7 @@ fn main()->Tensor[{name},?] ! TaskError:
     returned+{name}(amount-1)
 '''
     path,destination=args.root/f'{name}-{case}.k',args.root/f'{name}-{case}';path.write_text(text)
-    built=subprocess.run(list(map(str,[args.compiler,path,*flags,'-o',destination])),capture_output=True,text=True,timeout=120)
+    built=subprocess.run(list(map(str,[args.compiler,"--arithmetic","software",path,*flags,'-o',destination])),capture_output=True,text=True,timeout=120)
     assert built.returncode==0,(name,built.stdout,built.stderr)
     manifest=(destination/'manifest.txt').read_text()
     assert 'binding_layout=argument-buffer-tier2' in manifest,manifest

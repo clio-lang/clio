@@ -10,7 +10,7 @@ function(build_run NAME CONTENT BACKEND EXPECTED)
   if(BACKEND STREQUAL "metal")
     set(EXECUTABLE "${EXECUTABLE}/program")
   endif()
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target "${BACKEND}" -o "${OUTPUT_DIR}/${NAME}" "${FLAG}"
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/${NAME}.k" --target "${BACKEND}" -o "${OUTPUT_DIR}/${NAME}" "${FLAG}"
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME}: build failed: ${OUT} ${ERROR}")
@@ -52,7 +52,7 @@ message(STATUS "Shared helper CPU/GPU calls, CPU tasks, ranked loops and tensor 
 set(MISMATCH "fn forward(values: Tensor[float32, ?]) -> Tensor[float32, ?]:\n  values\n${SOURCE}")
 string(REPLACE "    local = combine(left, right)" "    smaller: Tensor[float32, 2] = tensor([4,5])\n    local = combine(forward(left), forward(smaller))" MISMATCH "${MISMATCH}")
 file(WRITE "${OUTPUT_DIR}/shape-fault.k" "${MISMATCH}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/shape-fault.k" --target metal -o "${OUTPUT_DIR}/shape-fault" -O2
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/shape-fault.k" --target metal -o "${OUTPUT_DIR}/shape-fault" -O2
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Dynamic shared CPU call did not compile: ${OUT} ${ERROR}")

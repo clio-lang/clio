@@ -9,7 +9,7 @@ foreach(VARIANT IN ITEMS optimized sanitized thread-sanitized)
   else()
     set(FLAG --thread-sanitize)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/division.k" --target metal
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${SOURCE_DIR}/division.k" --target metal
     -o "${OUTPUT_DIR}/${VARIANT}" "${FLAG}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${VARIANT} compilation failed: ${OUT} ${ERROR}")
@@ -56,7 +56,7 @@ string(REPLACE "Tensor[float32, 2, 3] = tensor([[1, 2, 4], [8, 16, 32]])"
 file(WRITE "${OUTPUT_DIR}/bad.k" "${BAD}")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/bad")
 file(WRITE "${OUTPUT_DIR}/bad/host.cpp" "sentinel")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/bad.k" --target metal -o "${OUTPUT_DIR}/bad"
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/bad.k" --target metal -o "${OUTPUT_DIR}/bad"
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/bad/host.cpp" SENTINEL)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "(G001|S0)" OR NOT SENTINEL STREQUAL "sentinel")
@@ -66,7 +66,7 @@ set(FORWARD "fn forward(values: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:
 string(REPLACE "transfer(right, gpu)" "transfer(forward(right), gpu)" BAD "${BAD}")
 string(REPLACE "quotient(left, right)" "quotient(left, forward(right))" BAD "${BAD}")
 file(WRITE "${OUTPUT_DIR}/dynamic.k" "${FORWARD}${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.k" --target metal -o "${OUTPUT_DIR}/dynamic" --sanitize
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/dynamic.k" --target metal -o "${OUTPUT_DIR}/dynamic" --sanitize
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Dynamic division mismatch should compile: ${OUT} ${ERROR}")
@@ -89,7 +89,7 @@ foreach(FLAG IN ITEMS --sanitize --thread-sanitize)
   else()
     set(NAME cpu-task-thread-sanitized)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/cpu-task.k" --target cpu
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/cpu-task.k" --target cpu
     -o "${OUTPUT_DIR}/${NAME}" "${FLAG}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "CPU division task compilation failed: ${OUT} ${ERROR}")
@@ -107,7 +107,7 @@ endforeach()
 set(ROUNDING_MAIN "fn main() -> Tensor[float32,2] ! TaskError:\n  try parallel:\n    gpu = devices.gpu()\n    input: Tensor[float32,1] = tensor([5])\n    resident = try await transfer(input,gpu)\n    divided = try await spawn vectorScale(resident,3) on gpu\n    multiplied = try await spawn vectorApplyReciprocal(resident,3) on gpu\n    a = try await transfer(divided,devices.cpu())\n    b = try await transfer(multiplied,devices.cpu())\n    summarize(a,b)\n")
 set(SUMMARIZE "fn summarize(a: Tensor[float32,?], b: Tensor[float32,?]) -> Tensor[float32,2]:\n  tensor([reduceSum(a),reduceSum(b)])\n\n")
 file(WRITE "${OUTPUT_DIR}/rounding.k" "${FUNCTIONS}${SUMMARIZE}${ROUNDING_MAIN}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/rounding.k" --target metal
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/rounding.k" --target metal
   -o "${OUTPUT_DIR}/rounding" --sanitize RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Division rounding compilation failed: ${OUT} ${ERROR}")

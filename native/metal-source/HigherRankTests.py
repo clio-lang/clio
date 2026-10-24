@@ -58,7 +58,7 @@ for rank in range(3, 9):
         identifier = f"rank{rank}-{name}"
         path, destination = args.root / (identifier + ".k"), args.root / identifier
         path.write_text(source)
-        run([args.compiler, path, *flags, "-o", destination])
+        run([args.compiler,"--arithmetic","software", path, *flags, "-o", destination])
         if args.variant:
             for workers in (1, 2, 4):
                 run([destination / "program"], output=expected,
@@ -81,7 +81,7 @@ for rank in range(3, 9):
               "    try await transfer(result,devices.cpu())\n")
     path, destination = args.root / f"rank{rank}-shape.k", args.root / f"rank{rank}-shape"
     path.write_text(source)
-    run([args.compiler, path, *flags, "-o", destination])
+    run([args.compiler,"--arithmetic","software", path, *flags, "-o", destination])
     if args.variant:
         for workers in (1, 2, 4):
             failure = run([destination / "program"], expected=1, output="",

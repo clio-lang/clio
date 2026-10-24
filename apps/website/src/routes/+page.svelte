@@ -279,9 +279,10 @@
           </p>
           <p>
             GPU programs support all ten native numeric types and dense tensor
-            ranks zero through eight. Compose resident numerical and control
-            graphs on Apple Metal, with explicit transfers between host and
-            device.
+            ranks zero through eight. Metal float32 uses hardware arithmetic;
+            float64 requires explicit software fallback. Compose resident
+            numerical and control graphs on Apple Metal, with explicit transfers
+            between host and device.
           </p>
           <a class="text-link" href="/docs/gpu"
             >Read the GPU guide {@render arrow()}</a

@@ -2,7 +2,9 @@
 
 Apple GPU measurements have a separate [CPU/Metal baseline](../../benchmarks/results/native-gpu-2026-10-15.md) and [runner](#apple-gpu-baseline).
 
-This measures the fresh C++/LLVM implementation, separately from the released JavaScript prototype's [language comparisons](../../benchmarks/README.md). See the [initial report](../../benchmarks/results/native-cpu-2026-10-15.md) and [scratch reuse comparison](../../benchmarks/results/native-cpu-2026-10-15-scratch.md).
+For equivalent source algorithms and optimized OpenBLAS/Accelerate APIs, use the [fair comparison suite](fair/README.md).
+
+This measures the native C++/LLVM implementation. The [language comparison suite](languages/README.md) separately compares native Kalandra CPU/Metal programs with Go, Python, Rust and C++. See the [initial report](../../benchmarks/results/native-cpu-2026-10-15.md) and [scratch reuse comparison](../../benchmarks/results/native-cpu-2026-10-15-scratch.md).
 
 Build the compiler first, then run:
 
@@ -245,3 +247,9 @@ python3 native/benchmarks/gpu.py \
 ```
 
 The direct reduction control is unchanged and does not use managed parameter packing. Buffer-object counts are measured separately from requested payload bytes and warm call latency.
+
+## Checked-call and matrix follow-up
+
+The [fair optimization report](../../benchmarks/results/optimization-2026-10-24.md) records source-level calls, CPU packed matrix kernels and hardware Metal contraction blocks. Use [optimization_controls.py](optimization_controls.py) after the fair suites for a matched cancellation-token control and separate device/encoding counters. `native-fast-calls` and `native-cpu-benchmark-cells` qualify call safety and every output cell of the timed matrix inputs; the existing CPU/Metal optimization tests retain full arithmetic conformance.
+
+The [scalar tail-call follow-up](../../benchmarks/results/tail-calls-2026-10-24.md) qualifies logical depth, cancellation and stack-budgeted loop specialization. Run `optimization_controls.py --cpu-only` after the fair source suite to measure token-bound calls without reusing GPU artifacts. `native-tail-calls`, `native-tail-calls-software` and `native-total-hardware-casts` retain independent semantic/numerical assertions; the tail driver optionally accepts a frozen `--baseline` compiler for exact differential qualification.

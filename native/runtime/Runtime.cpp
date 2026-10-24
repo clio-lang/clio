@@ -17,6 +17,24 @@
 #include <utility>
 #include <vector>
 
+#if defined(__APPLE__)
+// Trivial TLS is zero-initialized for each physical pthread, including reused
+// thread storage. Never cache stack bounds in a migratable Invocation.
+extern "C" {
+// Use the C TLS ABI: C++ thread_local on Darwin hides storage behind a
+// C++-mangled accessor, while generated LLVM references the C storage symbol.
+__thread std::uintptr_t kalandra_stack_bounds_v1[2]{};
+void kalandra_stack_bounds_init_v1() noexcept {
+  const auto thread = pthread_self();
+  const auto high = reinterpret_cast<std::uintptr_t>(pthread_get_stackaddr_np(thread));
+  const auto size = pthread_get_stacksize_np(thread);
+  constexpr std::uintptr_t reserve = 128 * 1024;
+  kalandra_stack_bounds_v1[0] = size > reserve && high >= size ? high - size + reserve : high;
+  kalandra_stack_bounds_v1[1] = high;
+}
+}
+#endif
+
 namespace kalandra::runtime {
 struct Backing;
 struct Owner {
@@ -151,6 +169,7 @@ Invocation::Invocation() noexcept {
 }
 Invocation::~Invocation() { settle(); }
 void Invocation::fault(std::int64_t code, std::int64_t line, std::int64_t column) noexcept {
+  pollMode_ = 2;
   if (!code_) {
     code_ = code ? code : 3;
     line_ = line;
@@ -625,6 +644,7 @@ void Invocation::release(void *buffer) noexcept {
   remove(owner);
 }
 void Invocation::settle() noexcept {
+  pollMode_ = 2;
   while (head_)
     remove(head_);
   settled_ = true;
@@ -640,14 +660,13 @@ bool Invocation::enterCall(std::int64_t line, std::int64_t column) noexcept {
     return false;
   bool exhausted = callDepth_ >= maxCallDepth;
 #if defined(__APPLE__)
-  // Contexts can migrate between workers: query the executing thread rather
-  // than caching a stack address in the invocation or thread-local state.
+  // TLS belongs to the executing pthread, so migration and thread reuse cannot
+  // retain another worker's stack bounds. Alternate stacks still fail admission.
+  if (!kalandra_stack_bounds_v1[1])
+    kalandra_stack_bounds_init_v1();
   const auto position = reinterpret_cast<std::uintptr_t>(__builtin_frame_address(0));
-  const auto high = reinterpret_cast<std::uintptr_t>(pthread_get_stackaddr_np(pthread_self()));
-  const auto size = pthread_get_stacksize_np(pthread_self());
-  constexpr std::uintptr_t reserve = 128 * 1024;
-  exhausted = exhausted || size <= reserve || high < size || position > high ||
-              position <= high - size + reserve;
+  exhausted = exhausted || position <= kalandra_stack_bounds_v1[0] ||
+              position > kalandra_stack_bounds_v1[1];
 #endif
   if (exhausted) {
     fault(6, line, column);
@@ -816,6 +835,9 @@ extern "C" bool kalandra_call_enter_v1(kalandra::runtime::Invocation *context, s
 }
 extern "C" void kalandra_call_leave_v1(kalandra::runtime::Invocation *context) noexcept {
   context->leaveCall();
+}
+extern "C" std::int64_t kalandra_poll_slow_v1(kalandra::runtime::Invocation *context) noexcept {
+  return context->poll();
 }
 extern "C" std::int64_t kalandra_poll_v1(kalandra::runtime::Invocation *context) noexcept {
   return context->poll();

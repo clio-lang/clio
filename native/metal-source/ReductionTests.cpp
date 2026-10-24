@@ -363,10 +363,14 @@ void admission(m::Runtime &runtime, const m::Kernel &kernel, const char *directo
   auto host =
       runtime.hostTensor(std::as_bytes(std::span(bits)), {shape + 1, 1}, m::Format::Float32);
   CHECK(host);
-  const std::int64_t unsupportedShape[] = {1, 1, 2};
-  auto ranked =
-      runtime.hostTensor(std::as_bytes(std::span(bits)), unsupportedShape, m::Format::Float32);
+  const std::int64_t rankedShape[] = {1, 1, 2};
+  auto ranked = runtime.hostTensor(std::as_bytes(std::span(bits)), rankedShape, m::Format::Float32);
   CHECK(ranked);
+  const std::int64_t rank8[] = {1, 1, 1, 1, 1, 1, 1, 2};
+  auto maximumRank = runtime.hostTensor(std::as_bytes(std::span(bits)), rank8, m::Format::Float32);
+  CHECK(maximumRank);
+  const std::int64_t rank9[] = {1, 1, 1, 1, 1, 1, 1, 1, 2};
+  CHECK(!runtime.hostTensor(std::as_bytes(std::span(bits)), rank9, m::Format::Float32));
   auto integers =
       runtime.hostTensor(std::as_bytes(std::span(bits)), {shape + 1, 1}, m::Format::UInt32);
   CHECK(integers);
@@ -381,6 +385,10 @@ void admission(m::Runtime &runtime, const m::Kernel &kernel, const char *directo
     auto before = runtime.stats().submissions;
     auto task = runtime.reduceSum(*core, group, pipeline, input);
     CHECK(task && core->drain());
+    if (core->failure(task).kind != TaskFailure::Fault || core->failure(task).code != code)
+      std::fprintf(stderr, "reduction admission rank=%zu: actual kind=%u code=%lld expected=%lld\n",
+                   input.shape().size(), unsigned(core->failure(task).kind),
+                   (long long)core->failure(task).code, (long long)code);
     CHECK(core->failure(task).kind == TaskFailure::Fault && core->failure(task).code == code);
     CHECK(runtime.stats().submissions == before);
     retire(*core, group);
@@ -395,9 +403,16 @@ void admission(m::Runtime &runtime, const m::Kernel &kernel, const char *directo
   auto a = runtime.upload(*core, group, *ranked, *device),
        b = runtime.upload(*core, group, *integers, *device);
   auto c = runtime.upload(*core, group, *scalarHost, *device);
+  auto d = runtime.upload(*core, group, *maximumRank, *device);
   CHECK(core->drain());
   reject(kernel, buffer(*core, c), 3);
-  reject(kernel, buffer(*core, a), 3);
+  for (auto admitted : {a, d}) {
+    const auto before = runtime.stats().submissions;
+    auto sum = runtime.reduceSum(*core, group, kernel, buffer(*core, admitted));
+    CHECK(sum && core->drain());
+    CHECK(scalar(*core, sum) == 0x40400000u);
+    CHECK(runtime.stats().submissions == before + 1);
+  }
   reject(kernel, buffer(*core, b), 3);
   retire(*core, group);
   auto foreign = m::Runtime::create();

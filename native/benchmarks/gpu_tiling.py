@@ -31,7 +31,7 @@ def main():
         commands.append([str(v) for v in command])
         return run(command, timeout=600)
     started = time.monotonic()
-    execute([args.compiler.resolve(), ROOT / 'native/benchmarks/gpu.k', '--target', 'metal', '-o', kernels, '-O2'])
+    execute([args.compiler.resolve(), ROOT / 'native/benchmarks/gpu.k', '--target', 'metal', '--arithmetic', 'software', '-o', kernels, '-O2'])
     for suffix in ['mlir', 'lowered.mlir', 'spv', 'metallib']:
         shutil.copyfile(kernels / f'kernel0.{suffix}', kernels / f'scalar.{suffix}')
     variants = ['scalar', 'shared8x8', 'register2x2', 'register2x1']
@@ -115,7 +115,7 @@ def main():
     for name in variants:
         artifacts += [kernels / f'{name}.{suffix}' for suffix in ['mlir', 'lowered.mlir', 'spv', 'metallib']]
     machine = {key: run(['sysctl', '-n', key]).strip() for key in ['machdep.cpu.brand_string', 'hw.logicalcpu', 'hw.memsize']}
-    result = dict(platform=platform.platform(), machine=machine, clang=run([llvm / 'bin/clang++', '--version']).strip(), timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(), revision=run(['git', 'rev-parse', 'HEAD']).strip(),
+    result = dict(arithmetic='software', platform=platform.platform(), machine=machine, clang=run([llvm / 'bin/clang++', '--version']).strip(), timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(), revision=run(['git', 'rev-parse', 'HEAD']).strip(),
                   worktree_status=run(['git', 'status', '--short']), suite=args.suite, production_policy_changed=False, strict_spirv_audit_passed=True, build_seconds=build_seconds,
                   protocol=dict(processes=3, warmups=2, samples=7, shuffled_variants_each_round=True, shuffled_workloads_each_process=True,
                                 timing='preallocated resident compute command GPU timestamps; encode/submit/wait wall; validation readback separate and untimed',

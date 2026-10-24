@@ -16,10 +16,10 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Verifier.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllExtensions.h"
 #include "mlir/InitAllPasses.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Target/LLVMIR/Dialect/All.h"
@@ -34,8 +34,8 @@
 #include <unordered_map>
 
 namespace kalandra {
-std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &,
-                                                          std::optional<std::string>);
+std::expected<BackendOutput, std::string>
+lowerTaskNative(const TypedModule &, std::optional<std::string>, ArithmeticMode);
 std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool functionValues);
 namespace {
 using namespace mlir;
@@ -43,9 +43,12 @@ struct LoweringFailure {
   std::string message;
 };
 class Lowerer {
+  ArithmeticMode arithmetic_;
+
 public:
-  Lowerer(const TypedModule &input, MLIRContext &context)
-      : input_(input), builder_(&context), module_(ModuleOp::create(builder_.getUnknownLoc())) {}
+  Lowerer(const TypedModule &input, MLIRContext &context, ArithmeticMode arithmetic)
+      : arithmetic_(arithmetic), input_(input), builder_(&context),
+        module_(ModuleOp::create(builder_.getUnknownLoc())) {}
   OwningOpRef<ModuleOp> run(const std::optional<std::string> &testEntry,
                             const std::vector<std::string> &exports) {
     recursiveClosures_ = hasRecursiveStorage(*planRecordStorage(input_));
@@ -739,6 +742,16 @@ private:
                                                                : (u ? P::uge : P::sge);
       return compare(loc, predicate, a, b);
     }
+    if (arithmetic_ != ArithmeticMode::Software) {
+      using F = arith::CmpFPredicate;
+      const auto predicate = op == ComparisonKind::Equal       ? F::OEQ
+                             : op == ComparisonKind::NotEqual  ? F::UNE
+                             : op == ComparisonKind::Less      ? F::OLT
+                             : op == ComparisonKind::LessEqual ? F::OLE
+                             : op == ComparisonKind::Greater   ? F::OGT
+                                                               : F::OGE;
+      return arith::CmpFOp::create(builder_, loc, predicate, a, b);
+    }
     const unsigned width = describeNumeric(source.element)->bits;
     const auto integerType = builder_.getIntegerType(width);
     a = arith::BitcastOp::create(builder_, loc, integerType, a);
@@ -899,8 +912,10 @@ private:
       offset = arith::AddIOp::create(builder_, loc, base, offset);
     if (width == 1)
       return memref::LoadOp::create(builder_, loc, scratch, ValueRange{offset});
-    return vector::LoadOp::create(builder_, loc, VectorType::get({width}, builder_.getF32Type()),
-                                  scratch, ValueRange{offset});
+    return vector::LoadOp::create(
+        builder_, loc,
+        VectorType::get({width}, cast<MemRefType>(scratch.getType()).getElementType()), scratch,
+        ValueRange{offset});
   }
   void scratchStore(Location loc, Value value, Value scratch, Value i, unsigned width,
                     Value base = {}) {
@@ -987,63 +1002,74 @@ private:
                        });
     return scratchReduction(loc, count, scratch, width, {}, unsignedValue);
   }
-  Value blockCount(Location loc, Value count) {
-    auto block = index(loc, 256);
-    auto whole = arith::DivUIOp::create(builder_, loc, count, block);
-    auto odd = arith::RemUIOp::create(builder_, loc, count, block);
-    auto extra = arith::SelectOp::create(builder_, loc,
-                                         compare(loc, arith::CmpIPredicate::ne, odd, index(loc, 0)),
-                                         index(loc, 1), index(loc, 0));
-    // Quotient/remainder avoids overflow from (count + 255) / 256.
-    return arith::AddIOp::create(builder_, loc, whole, extra);
-  }
   template <class Callback>
-  Value blockedReduction(Location loc, Value count, Value scratch, Callback element,
-                         unsigned width) {
-    const auto block = index(loc, 256), z = index(loc, 0), one = index(loc, 1);
-    const Type type = width == 1 ? Type(builder_.getF32Type())
-                                 : Type(VectorType::get({width}, builder_.getF32Type()));
-    auto result =
-        scf::IfOp::create(builder_, loc, TypeRange{type},
-                          compare(loc, arith::CmpIPredicate::ugt, count, block), true, true);
+  Value registerBlockReduction(Location loc, Value count, Value scratch, Callback element,
+                               unsigned width) {
+    const auto z = index(loc, 0), one = index(loc, 1), block = index(loc, 16);
+    auto groups = arith::DivUIOp::create(builder_, loc, count, block);
+    auto tail = arith::RemUIOp::create(builder_, loc, count, block);
+    const auto base = index(loc, 16 * width);
+    // Sixteen consecutive leaves form one exact subtree. Build its four pairwise
+    // levels in SSA/registers, writing only the root rather than every product.
+    const auto tree = [&](auto &&self, Value first, unsigned start, unsigned length) -> Value {
+      if (length == 1)
+        return element(arith::AddIOp::create(builder_, loc, first, index(loc, start)));
+      auto left = self(self, first, start, length / 2);
+      auto right = self(self, first, start + length / 2, length / 2);
+      return arith::AddFOp::create(builder_, loc, left, right);
+    };
+    scf::ForOp::create(builder_, loc, z, groups, one, ValueRange{},
+                      [&](OpBuilder &, Location, Value i, ValueRange) {
+                        auto first = arith::MulIOp::create(builder_, loc, i, block);
+                        scratchStore(loc, tree(tree, first, 0, 16), scratch, i, width, base);
+                        scf::YieldOp::create(builder_, loc);
+                      });
+    auto hasTail = compare(loc, arith::CmpIPredicate::ne, tail, z);
+    auto partial = scf::IfOp::create(builder_, loc, hasTail, false);
     {
       OpBuilder::InsertionGuard guard(builder_);
-      builder_.setInsertionPointToStart(&result.getThenRegion().front());
-      auto blocks = blockCount(loc, count);
-      auto rootBase = index(loc, 256 * width);
-      // Each aligned power-of-two block is a subtree of the original balanced
-      // reduction. Its roots must themselves use the same adjacent-pair tree.
-      scf::ForOp::create(
-          builder_, loc, z, blocks, one, ValueRange{},
-          [&](OpBuilder &, Location, Value chunk, ValueRange) {
-            auto start = arith::MulIOp::create(builder_, loc, chunk, block);
-            auto remaining = arith::SubIOp::create(builder_, loc, count, start);
-            auto length = arith::MinUIOp::create(builder_, loc, remaining, block);
-            auto sum = reduction(
-                loc, length, scratch,
-                [&](Value i) { return element(arith::AddIOp::create(builder_, loc, start, i)); },
-                width);
-            scratchStore(loc, sum, scratch, chunk, width, rootBase);
-            scf::YieldOp::create(builder_, loc);
-          });
-      auto sum = scratchReduction(loc, blocks, scratch, width, rootBase);
-      scf::YieldOp::create(builder_, loc, ValueRange{sum});
-      builder_.setInsertionPointToStart(&result.getElseRegion().front());
-      auto direct = reduction(loc, count, scratch, element, width);
-      scf::YieldOp::create(builder_, loc, ValueRange{direct});
+      builder_.setInsertionPointToStart(&partial.getThenRegion().front());
+      auto first = arith::MulIOp::create(builder_, loc, groups, block);
+      // Never pad missing leaves with zeros: signed zero and odd carry order
+      // remain identical to the specified adjacent-pair tree.
+      auto value = reduction(loc, tail, scratch,
+                             [&](Value i) { return element(arith::AddIOp::create(builder_, loc, first, i)); },
+                             width);
+      scratchStore(loc, value, scratch, groups, width, base);
+      // Result-free scf.if already owns its implicit yield.
     }
-    return result.getResult(0);
+    auto roots = arith::AddIOp::create(
+        builder_, loc, groups, arith::SelectOp::create(builder_, loc, hasTail, one, z));
+    return scratchReduction(loc, roots, scratch, width, base);
   }
   Value matmulKernel(Location loc, Value a, Value b, RankedTensorType output,
-                     const Matmul &operation, bool wide) {
+                     const Matmul &operation, bool wide, bool denseRight = false) {
     if (operation.order != ReductionOrder::BalancedAdjacent || !operation.separatelyRoundedProducts)
       throw LoweringFailure{"unsupported matmul numerical policy"};
     auto left = dimensions(loc, a), right = dimensions(loc, b);
+    Value denseBuffer, packedRight;
+    if (denseRight) {
+      auto cell = output.getElementType();
+      auto dynamicLayout = StridedLayoutAttr::get(builder_.getContext(), ShapedType::kDynamic,
+                                                 {ShapedType::kDynamic, ShapedType::kDynamic});
+      auto dynamicType = MemRefType::get({ShapedType::kDynamic, ShapedType::kDynamic}, cell, dynamicLayout);
+      auto buffer = bufferization::ToBufferOp::create(builder_, loc, dynamicType, b, true);
+      auto metadata = memref::ExtractStridedMetadataOp::create(builder_, loc, buffer);
+      auto layout = StridedLayoutAttr::get(builder_.getContext(), ShapedType::kDynamic,
+                                          {ShapedType::kDynamic, 1});
+      auto type = MemRefType::get({ShapedType::kDynamic, ShapedType::kDynamic}, cell, layout);
+      denseBuffer = memref::ReinterpretCastOp::create(
+          builder_, loc, type, metadata.getSource(), metadata.getOffset(),
+          ArrayRef<OpFoldResult>{right[0], right[1]},
+          ArrayRef<OpFoldResult>{metadata.getStrides()[0], builder_.getIndexAttr(1)});
+    }
     if (operation.checkInnerExtent)
       guard(loc, compare(loc, arith::CmpIPredicate::eq, left[1], right[0]), 1);
-    auto cells = checkedCount(loc, {left[0], right[1]});
+    auto cells =
+        checkedCount(loc, {left[0], right[1]}, output.getElementType().getIntOrFloatBitWidth() / 8);
     const auto z = index(loc, 0), one = index(loc, 1), two = index(loc, 2), four = index(loc, 4);
-    const auto sixteen = index(loc, 16), block = index(loc, 256);
+    const unsigned tileRows = output.getElementType().isF64() ? 1 : 2;
+    const auto rowStep = index(loc, tileRows), eight = index(loc, 8);
     auto noCells = compare(loc, arith::CmpIPredicate::eq, cells, z);
     auto rowCount = arith::SelectOp::create(builder_, loc, noCells, z, left[0]);
     auto hasPair = compare(loc, arith::CmpIPredicate::uge, right[1], two);
@@ -1052,16 +1078,45 @@ private:
     auto smallWidth = arith::SelectOp::create(builder_, loc, hasTile, four, narrowWidth);
     Value width = smallWidth, count = left[1];
     if (wide) {
-      width = index(loc, 64);
-      auto blockedCount = arith::AddIOp::create(builder_, loc, block, blockCount(loc, left[1]));
-      count = arith::SelectOp::create(builder_, loc,
-                                      compare(loc, arith::CmpIPredicate::ugt, left[1], block),
-                                      blockedCount, left[1]);
+      width = index(loc, tileRows * 8);
+      auto groups = arith::DivUIOp::create(builder_, loc, left[1], index(loc, 16));
+      count = arith::AddIOp::create(builder_, loc, groups, index(loc, 17));
     }
     // Empty output must never size scratch from an unused, potentially enormous
     // contraction dimension. All paths/edge kernels reuse this one allocation.
     auto scratchCount = arith::SelectOp::create(builder_, loc, noCells, z, count);
-    auto scratch = reductionScratch(loc, checkedCount(loc, {scratchCount, width}));
+    auto scratch =
+        reductionScratch(loc,
+                         checkedCount(loc, {scratchCount, width},
+                                      output.getElementType().getIntOrFloatBitWidth() / 8),
+                         output.getElementType());
+    if (denseRight) {
+      // Pack full eight-column panels once. A contraction then streams a small
+      // contiguous panel instead of walking the RHS at its full row pitch.
+      auto panels = arith::DivUIOp::create(builder_, loc, right[1], eight);
+      packedRight = reductionScratch(
+          loc, checkedCount(loc, {panels, left[1], eight},
+                            output.getElementType().getIntOrFloatBitWidth() / 8),
+          output.getElementType());
+      scf::ForOp::create(builder_, loc, z, panels, one, ValueRange{},
+                        [&](OpBuilder &, Location, Value panel, ValueRange) {
+                          scf::ForOp::create(builder_, loc, z, left[1], one, ValueRange{},
+                                            [&](OpBuilder &, Location, Value k, ValueRange) {
+                                              auto first = arith::MulIOp::create(builder_, loc, panel, eight);
+                                              auto row = arith::AddIOp::create(
+                                                  builder_, loc, arith::MulIOp::create(builder_, loc, panel, left[1]), k);
+                                              auto base = arith::MulIOp::create(builder_, loc, row, eight);
+                                              for (unsigned c = 0; c < 8; ++c) {
+                                                auto column = arith::AddIOp::create(builder_, loc, first, index(loc, c));
+                                                auto value = memref::LoadOp::create(builder_, loc, denseBuffer, ValueRange{k, column});
+                                                memref::StoreOp::create(builder_, loc, value, packedRight,
+                                                    ValueRange{arith::AddIOp::create(builder_, loc, base, index(loc, c))});
+                                              }
+                                              scf::YieldOp::create(builder_, loc);
+                                            });
+                          scf::YieldOp::create(builder_, loc);
+                        });
+    }
     auto remainder = arith::RemUIOp::create(builder_, loc, right[1], four);
     auto tiledColumns = arith::SubIOp::create(builder_, loc, right[1], remainder);
     SmallVector<Value> dynamic;
@@ -1070,13 +1125,13 @@ private:
     if (output.isDynamicDim(1))
       dynamic.push_back(right[1]);
     auto empty =
-        tensor::EmptyOp::create(builder_, loc, output.getShape(), builder_.getF32Type(), dynamic);
+        tensor::EmptyOp::create(builder_, loc, output.getShape(), output.getElementType(), dynamic);
     // Explicit serial loops bufferize in place. Scratch is invocation-local;
     // tensor.generate would not guarantee exclusive use of mutable scratch.
     const auto tile = [&](Value row, Value column, Value input, unsigned rows, unsigned columns,
                           bool blocked) -> Value {
       const unsigned lanes = rows * columns;
-      const auto vectorType = VectorType::get({lanes}, builder_.getF32Type());
+      const auto vectorType = VectorType::get({lanes}, output.getElementType());
       const auto product = [&](Value k) -> Value {
         Value singleX;
         if (rows == 1)
@@ -1084,7 +1139,17 @@ private:
         SmallVector<Value> values;
         for (unsigned c = 0; c < columns; ++c) {
           auto col = arith::AddIOp::create(builder_, loc, column, index(loc, c));
-          values.push_back(tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, col}));
+          if (denseRight && columns == 8) {
+            auto panel = arith::DivUIOp::create(builder_, loc, column, eight);
+            auto packedRow = arith::AddIOp::create(builder_, loc,
+                arith::MulIOp::create(builder_, loc, panel, left[1]), k);
+            auto at = arith::AddIOp::create(builder_, loc,
+                arith::MulIOp::create(builder_, loc, packedRow, eight), index(loc, c));
+            values.push_back(memref::LoadOp::create(builder_, loc, packedRight, ValueRange{at}));
+          } else
+            values.push_back(denseRight
+                                 ? Value(memref::LoadOp::create(builder_, loc, denseBuffer, ValueRange{k, col}))
+                                 : Value(tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, col})));
         }
         if (lanes == 1) {
           return arith::MulFOp::create(builder_, loc, singleX, values[0]);
@@ -1108,7 +1173,7 @@ private:
         }
         return arith::MulFOp::create(builder_, loc, lhs, rhs);
       };
-      auto sum = blocked ? blockedReduction(loc, left[1], scratch, product, lanes)
+      auto sum = blocked ? registerBlockReduction(loc, left[1], scratch, product, lanes)
                          : reduction(loc, left[1], scratch, product, lanes);
       Value result = input;
       for (unsigned r = 0; r < rows; ++r)
@@ -1173,30 +1238,30 @@ private:
     };
     if (wide) {
       auto fullRows = arith::SubIOp::create(builder_, loc, rowCount,
-                                            arith::RemUIOp::create(builder_, loc, rowCount, four));
+                                            arith::RemUIOp::create(builder_, loc, rowCount, rowStep));
       auto fullColumns = arith::SubIOp::create(
-          builder_, loc, right[1], arith::RemUIOp::create(builder_, loc, right[1], sixteen));
+          builder_, loc, right[1], arith::RemUIOp::create(builder_, loc, right[1], eight));
       auto main =
-          scf::ForOp::create(builder_, loc, z, fullRows, four, ValueRange{empty},
+          scf::ForOp::create(builder_, loc, z, fullRows, rowStep, ValueRange{empty},
                              [&](OpBuilder &, Location, Value row, ValueRange values) {
                                auto cols = scf::ForOp::create(
-                                   builder_, loc, z, fullColumns, sixteen, values,
+                                   builder_, loc, z, fullColumns, eight, values,
                                    [&](OpBuilder &, Location, Value col, ValueRange outputs) {
-                                     auto result = tile(row, col, outputs[0], 4, 16, true);
+                                     auto result = tile(row, col, outputs[0], tileRows, 8, true);
                                      scf::YieldOp::create(builder_, loc, ValueRange{result});
                                    });
                                scf::YieldOp::create(builder_, loc, cols.getResults());
                              });
-      // Remaining rows still process sixteen columns together. Column edges
+      // Remaining rows still process eight columns together. Column edges
       // use 4/2/1 lanes, but MUST use blocked reductions with this scratch
       // bound.
       auto bottom =
           scf::ForOp::create(builder_, loc, fullRows, rowCount, one, main.getResults(),
                              [&](OpBuilder &, Location, Value row, ValueRange values) {
                                auto cols = scf::ForOp::create(
-                                   builder_, loc, z, fullColumns, sixteen, values,
+                                   builder_, loc, z, fullColumns, eight, values,
                                    [&](OpBuilder &, Location, Value col, ValueRange outputs) {
-                                     auto result = tile(row, col, outputs[0], 1, 16, true);
+                                     auto result = tile(row, col, outputs[0], 1, 8, true);
                                      scf::YieldOp::create(builder_, loc, ValueRange{result});
                                    });
                                scf::YieldOp::create(builder_, loc, cols.getResults());
@@ -1285,7 +1350,7 @@ private:
   }
   Value matmul(Location loc, Value a, Value b, RankedTensorType output, const Matmul &operation,
                NumericType element) {
-    if (isInteger(element) || element == NumericType::Float64)
+    if (isInteger(element) || arithmetic_ == ArithmeticMode::Software)
       return scalarMatmul(loc, a, b, output, operation, isUnsigned(element));
     // Outlining prevents a large SIMD kernel's register/stack requirements from
     // penalizing narrow shapes in the surrounding source function.
@@ -1298,9 +1363,35 @@ private:
           builder_.getFunctionType({a.getType(), b.getType()}, {output}));
       helper.setPrivate();
       builder_.setInsertionPointToStart(helper.addEntryBlock());
-      auto result =
-          matmulKernel(loc, helper.getArgument(0), helper.getArgument(1), output, operation, true);
-      func::ReturnOp::create(builder_, loc, ValueRange{result});
+      // Specialize only a proven unit column stride. Row stride, offsets and
+      // general/non-contiguous layouts retain their original descriptor meaning.
+      auto layout = StridedLayoutAttr::get(builder_.getContext(), ShapedType::kDynamic,
+                                          {ShapedType::kDynamic, ShapedType::kDynamic});
+      auto bufferType = MemRefType::get({ShapedType::kDynamic, ShapedType::kDynamic},
+                                      output.getElementType(), layout);
+      auto buffer = bufferization::ToBufferOp::create(builder_, loc, bufferType,
+                                                     helper.getArgument(1), true);
+      auto metadata = memref::ExtractStridedMetadataOp::create(builder_, loc, buffer);
+      Value dense = compare(loc, arith::CmpIPredicate::eq, metadata.getStrides()[1], index(loc, 1));
+      auto rows = tensor::DimOp::create(builder_, loc, helper.getArgument(0), index(loc, 0));
+      for (auto condition : {
+             compare(loc, arith::CmpIPredicate::uge, rows, index(loc, 32)),
+             compare(loc, arith::CmpIPredicate::uge, metadata.getSizes()[0], index(loc, 128)),
+             compare(loc, arith::CmpIPredicate::uge, metadata.getSizes()[1], index(loc, 32))})
+        dense = arith::AndIOp::create(builder_, loc, dense, condition);
+      auto choice = scf::IfOp::create(builder_, loc, TypeRange{output}, dense, true, true);
+      {
+        OpBuilder::InsertionGuard guard(builder_);
+        builder_.setInsertionPointToStart(&choice.getThenRegion().front());
+        auto result = matmulKernel(loc, helper.getArgument(0), helper.getArgument(1), output,
+                                   operation, true, true);
+        scf::YieldOp::create(builder_, loc, ValueRange{result});
+        builder_.setInsertionPointToStart(&choice.getElseRegion().front());
+        result = matmulKernel(loc, helper.getArgument(0), helper.getArgument(1), output,
+                              operation, true, false);
+        scf::YieldOp::create(builder_, loc, ValueRange{result});
+      }
+      func::ReturnOp::create(builder_, loc, choice.getResults());
     }
     auto left = dimensions(loc, a), right = dimensions(loc, b);
     auto useWide = arith::AndIOp::create(
@@ -1330,8 +1421,12 @@ private:
         [&](Value linear) -> Value {
           SmallVector<Value> indices(shape.size());
           for (std::size_t axis = shape.size(); axis > 0; --axis) {
-            indices[axis - 1] = arith::RemUIOp::create(builder_, loc, linear, shape[axis - 1]);
-            linear = arith::DivUIOp::create(builder_, loc, linear, shape[axis - 1]);
+            if (axis == 1)
+              indices[0] = linear;
+            else {
+              indices[axis - 1] = arith::RemUIOp::create(builder_, loc, linear, shape[axis - 1]);
+              linear = arith::DivUIOp::create(builder_, loc, linear, shape[axis - 1]);
+            }
           }
           return tensor::ExtractOp::create(builder_, loc, tensor, indices);
         },
@@ -1353,7 +1448,8 @@ private:
     std::function<Value(std::size_t, Value)> loop = [&](std::size_t axis, Value tensor) -> Value {
       if (axis == shape.size()) {
         Value lane = tensor::ExtractOp::create(builder_, loc, input, indices);
-        auto [converted, valid] = numericConversion(builder_, loc, lane, source, destination);
+        auto [converted, valid] =
+            numericConversion(builder_, loc, lane, source, destination, arithmetic_);
         guard(loc, valid, 4);
         return tensor::InsertOp::create(builder_, loc, converted, tensor, indices);
       }
@@ -1444,6 +1540,156 @@ private:
     std::unordered_map<ValueId, Value> values;
     std::unordered_map<SymbolId, Value> symbols;
   };
+  // Fuse a pure floating map into the first level of its adjacent-pair sum.
+  // Inputs stay immutable; only the half-sized private reduction scratch mutates.
+  Value fusedMapReduction(Frame &frame, ValueId root, Location loc) {
+    const auto &output = input_.expressions[root].type;
+    if (arithmetic_ == ArithmeticMode::Software || isInteger(output.element) ||
+        frame.values.contains(root) ||
+        (!std::holds_alternative<TensorBinary>(input_.expressions[root].operation) &&
+         !std::holds_alternative<TensorUnary>(input_.expressions[root].operation)))
+      return {};
+    std::vector<ValueId> leaves;
+    std::function<bool(ValueId)> admit = [&](ValueId id) {
+      const auto &node = input_.expressions[id];
+      if (node.type.element != output.element || node.type.array)
+        return false;
+      if (!frame.values.contains(id)) {
+        if (auto *op = std::get_if<TensorBinary>(&node.operation))
+          return admit(op->left) && admit(op->right);
+        if (auto *op = std::get_if<TensorUnary>(&node.operation))
+          return admit(op->operand);
+      }
+      if (!frame.values.contains(id) && !std::holds_alternative<SymbolRead>(node.operation) &&
+          !std::holds_alternative<Float32Literal>(node.operation) &&
+          !std::holds_alternative<Float64Literal>(node.operation))
+        return false;
+      if (node.type.tensor && node.type.shape.size() != output.shape.size())
+        return false;
+      if (std::ranges::find(leaves, id) == leaves.end())
+        leaves.push_back(id);
+      return true;
+    };
+    if (!admit(root))
+      return {};
+    std::unordered_map<ValueId, Value> values;
+    SmallVector<Value> shape;
+    bool shaped = false;
+    for (auto id : leaves) {
+      auto value = expression(frame, id);
+      values.emplace(id, value);
+      if (!input_.expressions[id].type.tensor)
+        continue;
+      auto current = dimensions(loc, value);
+      if (!shaped) {
+        shape = current;
+        shaped = true;
+      } else
+        for (std::size_t axis = 0; axis < shape.size(); ++axis)
+          guard(loc, compare(loc, arith::CmpIPredicate::eq, shape[axis], current[axis]), 1);
+    }
+    if (!shaped)
+      throw LoweringFailure{"tensor map reduction has no tensor input"};
+    auto count = checkedCount(loc, shape, describeNumeric(output.element)->bytes());
+    const auto z = index(loc, 0), one = index(loc, 1), two = index(loc, 2);
+    auto pairs = arith::DivUIOp::create(builder_, loc, count, two);
+    auto odd = arith::RemUIOp::create(builder_, loc, count, two);
+    auto next = arith::AddIOp::create(builder_, loc, pairs, odd);
+    auto cell = output.element == NumericType::Float64 ? Type(builder_.getF64Type())
+                                                       : Type(builder_.getF32Type());
+    auto scratch = reductionScratch(loc, next, cell);
+    std::map<ValueId, memref::ExtractStridedMetadataOp> buffers;
+    Value contiguous = arith::ConstantIntOp::create(builder_, loc, 1, 1);
+    if (shape.size() == 1)
+      for (auto id : leaves) {
+        if (!input_.expressions[id].type.tensor)
+          continue;
+        auto layout = StridedLayoutAttr::get(builder_.getContext(), ShapedType::kDynamic,
+                                             {ShapedType::kDynamic});
+        auto bufferType = MemRefType::get({ShapedType::kDynamic}, cell, layout);
+        auto buffer =
+            bufferization::ToBufferOp::create(builder_, loc, bufferType, values.at(id), true);
+        auto metadata = memref::ExtractStridedMetadataOp::create(builder_, loc, buffer);
+        buffers.emplace(id, metadata);
+        contiguous = arith::AndIOp::create(
+            builder_, loc, contiguous,
+            compare(loc, arith::CmpIPredicate::eq, metadata.getStrides()[0], one));
+      }
+    const auto run = [&](bool dense) -> Value {
+      std::unordered_map<ValueId, Value> reads;
+      if (dense)
+        for (auto [id, metadata] : buffers) {
+          auto layout = StridedLayoutAttr::get(builder_.getContext(), ShapedType::kDynamic, {1});
+          auto bufferType = MemRefType::get({ShapedType::kDynamic}, cell, layout);
+          reads[id] = memref::ReinterpretCastOp::create(
+              builder_, loc, bufferType, metadata.getSource(), metadata.getOffset(),
+              ArrayRef<OpFoldResult>{shape[0]}, ArrayRef<OpFoldResult>{builder_.getIndexAttr(1)});
+        }
+      std::function<Value(ValueId, ArrayRef<Value>)> lane = [&](ValueId id,
+                                                                ArrayRef<Value> indices) -> Value {
+        if (auto found = reads.find(id); found != reads.end())
+          return memref::LoadOp::create(builder_, loc, found->second, indices);
+        if (auto found = values.find(id); found != values.end())
+          return input_.expressions[id].type.tensor
+                     ? Value(tensor::ExtractOp::create(builder_, loc, found->second, indices))
+                     : found->second;
+        const auto &node = input_.expressions[id];
+        if (auto *op = std::get_if<TensorUnary>(&node.operation)) {
+          auto value = lane(op->operand, indices);
+          return op->operation == TokenKind::Plus
+                     ? value
+                     : Value(arith::NegFOp::create(builder_, loc, value));
+        }
+        auto &op = std::get<TensorBinary>(node.operation);
+        auto a = lane(op.left, indices), b = lane(op.right, indices);
+        const char *name = op.operation == TokenKind::Plus    ? "arith.addf"
+                           : op.operation == TokenKind::Minus ? "arith.subf"
+                           : op.operation == TokenKind::Slash ? "arith.divf"
+                                                              : "arith.mulf";
+        return binary(loc, name, a, b);
+      };
+      const auto at = [&](Value linear) {
+        SmallVector<Value> indices(shape.size());
+        for (std::size_t axis = shape.size(); axis > 0; --axis) {
+          if (axis == 1)
+            indices[0] = linear;
+          else {
+            indices[axis - 1] = arith::RemUIOp::create(builder_, loc, linear, shape[axis - 1]);
+            linear = arith::DivUIOp::create(builder_, loc, linear, shape[axis - 1]);
+          }
+        }
+        return lane(root, indices);
+      };
+      scf::ForOp::create(builder_, loc, z, pairs, one, ValueRange{},
+                         [&](OpBuilder &, Location, Value i, ValueRange) {
+                           auto first = arith::MulIOp::create(builder_, loc, i, two);
+                           auto second = arith::AddIOp::create(builder_, loc, first, one);
+                           auto a = at(first), b = at(second);
+                           auto sum = arith::AddFOp::create(builder_, loc, a, b);
+                           scratchStore(loc, sum, scratch, i, 1);
+                           scf::YieldOp::create(builder_, loc);
+                         });
+      scf::IfOp::create(builder_, loc, compare(loc, arith::CmpIPredicate::ne, odd, z),
+                        [&](OpBuilder &, Location) {
+                          scratchStore(loc, at(arith::SubIOp::create(builder_, loc, count, one)),
+                                       scratch, pairs, 1);
+                          scf::YieldOp::create(builder_, loc);
+                        });
+      return scratchReduction(loc, next, scratch);
+    };
+    if (shape.size() != 1)
+      return run(false);
+    auto result = scf::IfOp::create(builder_, loc, TypeRange{cell}, contiguous, true, true);
+    {
+      OpBuilder::InsertionGuard guard(builder_);
+      builder_.setInsertionPointToStart(&result.getThenRegion().front());
+      scf::YieldOp::create(builder_, loc, ValueRange{run(true)});
+      builder_.setInsertionPointToStart(&result.getElseRegion().front());
+      scf::YieldOp::create(builder_, loc, ValueRange{run(false)});
+    }
+    return result.getResult(0);
+  }
+
   Value expression(Frame &frame, ValueId id) {
     if (auto found = frame.values.find(id); found != frame.values.end())
       return found->second;
@@ -1618,7 +1864,7 @@ private:
               return convertTensor(loc, input, cast<RankedTensorType>(type(node.type)), source,
                                    node.type.element);
             auto [converted, valid] =
-                numericConversion(builder_, loc, input, source, node.type.element);
+                numericConversion(builder_, loc, input, source, node.type.element, arithmetic_);
             guard(loc, valid, 4);
             return converted;
           } else if constexpr (std::is_same_v<T, TensorUnary>) {
@@ -2189,15 +2435,18 @@ private:
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
             return matmul(loc, a, b, cast<RankedTensorType>(type(node.type)), operation,
                           node.type.element);
-          } else if constexpr (std::is_same_v<T, ReduceSum>)
+          } else if constexpr (std::is_same_v<T, ReduceSum>) {
+            if (operation.order == ReductionOrder::BalancedAdjacent && operation.rowMajor)
+              if (auto fused = fusedMapReduction(frame, operation.input, loc))
+                return fused;
             return reduce(loc, expression(frame, operation.input), operation, node.type.element);
-          else if constexpr (std::is_same_v<T, DeviceSelection> || std::is_same_v<T, Transfer> ||
-                             std::is_same_v<T, TaskOperation> ||
-                             std::is_same_v<T, ParallelOperation> ||
-                             std::is_same_v<T, CatchOperation> ||
-                             std::is_same_v<T, ErrorFieldRead> ||
-                             std::is_same_v<T, FailOperation> ||
-                             std::is_same_v<T, GuardOperation>) {
+          } else if constexpr (std::is_same_v<T, DeviceSelection> || std::is_same_v<T, Transfer> ||
+                               std::is_same_v<T, TaskOperation> ||
+                               std::is_same_v<T, ParallelOperation> ||
+                               std::is_same_v<T, CatchOperation> ||
+                               std::is_same_v<T, ErrorFieldRead> ||
+                               std::is_same_v<T, FailOperation> ||
+                               std::is_same_v<T, GuardOperation>) {
             throw LoweringFailure{"task operation requires continuation lowering"};
           } else if constexpr (std::is_same_v<T, ShapeCheck>) {
             auto input = expression(frame, operation.input);
@@ -2324,7 +2573,8 @@ private:
 } // namespace
 std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
                                                       std::optional<std::string> testEntry,
-                                                      const std::vector<std::string> &exports) {
+                                                      const std::vector<std::string> &exports,
+                                                      ArithmeticMode arithmetic) {
   if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
     return std::unexpected(*error);
   const auto storage = planRecordStorage(input);
@@ -2342,7 +2592,7 @@ std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
       })) {
     if (!exports.empty())
       return std::unexpected("CPU bridge exports require ordinary synchronous functions");
-    return lowerTaskNative(input, testEntry);
+    return lowerTaskNative(input, testEntry, arithmetic);
   }
   DialectRegistry registry;
   registerAllDialects(registry);
@@ -2353,7 +2603,7 @@ std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
   static std::once_flag passRegistration;
   std::call_once(passRegistration, [] { registerAllPasses(); });
   try {
-    auto module = Lowerer(input, context).run(testEntry, exports);
+    auto module = Lowerer(input, context, arithmetic).run(testEntry, exports);
     if (failed(verify(*module)))
       return std::unexpected("generated tensor MLIR failed verification");
     BackendOutput result;
@@ -2364,16 +2614,16 @@ std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
         flags.enableDebugInfo();
       module->print(source, flags);
     }
-    // Keep the established binary32 CPU path unchanged. Only new scalar binary64
-    // operations use the independently qualified strict integer implementation.
+    // Hardware arithmetic is the default; strict integer IEEE arithmetic is opt-in.
     SmallVector<Operation *> doubles;
     module->walk([&](Operation *op) {
       if (isa<arith::AddFOp, arith::SubFOp, arith::MulFOp, arith::DivFOp, arith::NegFOp>(op) &&
-          op->getResult(0).getType().isF64())
+          (op->getResult(0).getType().isF64() || op->getResult(0).getType().isF32()) &&
+          arithmetic == ArithmeticMode::Software)
         doubles.push_back(op);
     });
     for (auto *op : doubles)
-      if (failed(lowerStrictCpuFloat(op)))
+      if (failed(lowerOutlinedStrictCpuFloat(op)))
         return std::unexpected("strict CPU float64 lowering failed");
     PassManager pipeline(&context);
     pipeline.enableVerifier(true);

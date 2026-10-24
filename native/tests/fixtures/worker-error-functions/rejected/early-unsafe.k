@@ -1,18 +1,16 @@
 type Outcome:
-  error:TaskError
+  error:fn(int)->int
 error E:
   Retry:
     callback:fn(int)->int
-fn unsafe(error:TaskError)->fn(int)->int:
+fn unsafe(error:fn(int)->int)->fn(int)->int:
   outcome=Outcome {error:error}
   fn(value:int):
-    match outcome.error:
-      TaskError.Fault {kind}:value
-      _:0
-fn worker(error:TaskError,flag:Bool)->int ! E:
+    outcome.error(value)
+fn worker(error:fn(int)->int,flag:Bool)->int ! E:
   if flag:fail E.Retry {callback:unsafe(error)}
   42
-fn submit(error:TaskError)->int ! (E | TaskError):
+fn submit(error:fn(int)->int)->int ! (E | TaskError):
   try parallel:
     try await spawn worker(error,true)
 fn main()->int:

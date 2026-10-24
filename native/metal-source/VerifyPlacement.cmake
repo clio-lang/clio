@@ -46,7 +46,7 @@ file(CREATE_LINK "${OUTPUT_DIR}/placement-cli/sentinel" "${OUTPUT_DIR}/placement
 if(NOT STATUS STREQUAL "0")
   message(FATAL_ERROR "Cannot prepare placement artifact symlink test: ${STATUS}")
 endif()
-execute_process(COMMAND "${COMPILER}" "${SOURCE}" -o "${OUTPUT_DIR}/placement-cli/symlink"
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${SOURCE}" -o "${OUTPUT_DIR}/placement-cli/symlink"
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/placement-cli/sentinel" SENTINEL)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "refusing symlink output" OR NOT SENTINEL STREQUAL "untouched"
@@ -58,7 +58,7 @@ file(READ "${SOURCE}" SOURCE_TEXT)
 file(WRITE "${OUTPUT_DIR}/placement-cli/collision/input.k" "${SOURCE_TEXT}")
 file(REMOVE "${OUTPUT_DIR}/placement-cli/collision/placement.ir")
 file(CREATE_LINK "${OUTPUT_DIR}/placement-cli/collision/input.k" "${OUTPUT_DIR}/placement-cli/collision/placement.ir")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/placement-cli/collision/input.k"
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/placement-cli/collision/input.k"
   -o "${OUTPUT_DIR}/placement-cli/collision" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/placement-cli/collision/placement.ir" AFTER)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "source and output paths must be distinct" OR NOT SOURCE_TEXT STREQUAL AFTER
@@ -73,7 +73,7 @@ file(CREATE_LINK "${OUTPUT_DIR}/placement-cli/sentinel" "${OUTPUT_DIR}/placement
 if(NOT STATUS STREQUAL "0")
   message(FATAL_ERROR "Cannot prepare continuation artifact symlink: ${STATUS}")
 endif()
-execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/placed.k" -o "${OUTPUT_DIR}/placement-cli/plan-symlink"
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${SOURCE_DIR}/placed.k" -o "${OUTPUT_DIR}/placement-cli/plan-symlink"
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/placement-cli/sentinel" SENTINEL)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "refusing symlink output" OR NOT SENTINEL STREQUAL "untouched"
@@ -85,7 +85,7 @@ file(READ "${SOURCE_DIR}/placed.k" SOURCE_TEXT)
 file(WRITE "${OUTPUT_DIR}/placement-cli/plan-collision/input.k" "${SOURCE_TEXT}")
 file(REMOVE "${OUTPUT_DIR}/placement-cli/plan-collision/continuation.plan")
 file(CREATE_LINK "${OUTPUT_DIR}/placement-cli/plan-collision/input.k" "${OUTPUT_DIR}/placement-cli/plan-collision/continuation.plan")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/placement-cli/plan-collision/input.k"
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/placement-cli/plan-collision/input.k"
   -o "${OUTPUT_DIR}/placement-cli/plan-collision" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/placement-cli/plan-collision/continuation.plan" AFTER)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "source and output paths must be distinct" OR NOT SOURCE_TEXT STREQUAL AFTER

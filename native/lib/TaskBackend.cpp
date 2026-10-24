@@ -184,7 +184,7 @@ public:
     emitEntries();
     if (testEntry) {
       const auto found = std::ranges::find_if(planner.input.functions,
-                                           [&](const auto &f) { return f.name == *testEntry; });
+                                              [&](const auto &f) { return f.name == *testEntry; });
       const bool callableProbe = found != planner.input.functions.end() && !found->captureCount &&
                                  synchronousEntries[found - planner.input.functions.begin()];
       if (found == planner.input.functions.end() ||
@@ -1477,7 +1477,8 @@ private:
           break;
         }
         if (const auto *integer = std::get_if<Int64Literal>(&literal)) {
-          builder.CreateStore(c64(static_cast<std::uint64_t>(integer->value)), payload(instruction.output));
+          builder.CreateStore(c64(static_cast<std::uint64_t>(integer->value)),
+                              payload(instruction.output));
           builder.CreateBr(next);
           break;
         }
@@ -2142,7 +2143,8 @@ std::vector<llvm::GlobalVariable *> emitTaskEntries(continuation::ModulePlan &pl
   return emitter.taskEntries();
 }
 std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &input,
-                                                          std::optional<std::string> testEntry) {
+                                                          std::optional<std::string> testEntry,
+                                                          ArithmeticMode arithmetic) {
   if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
     return std::unexpected(*error);
   if (hasPlacement(input))
@@ -2152,7 +2154,7 @@ std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &inp
     if (!planned)
       return std::unexpected(planned.error());
     auto &planner = *planned;
-    auto kernels = lowerNative(planner.kernels);
+    auto kernels = lowerNative(planner.kernels, {}, {}, arithmetic);
     if (!kernels)
       return kernels;
     llvm::LLVMContext context;

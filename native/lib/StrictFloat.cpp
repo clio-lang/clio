@@ -1,7 +1,9 @@
 #include "kalandra/StrictFloat.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/TypeUtilities.h"
 
@@ -298,5 +300,57 @@ mlir::LogicalResult lowerStrictGpuFloat64(mlir::Operation *root) {
 }
 mlir::LogicalResult lowerStrictCpuFloat(mlir::Operation *root) {
   return lowerStrictFloat(root, true);
+}
+mlir::LogicalResult lowerOutlinedStrictCpuFloat(mlir::Operation *operation) {
+  using namespace mlir;
+  auto module = operation->getParentOfType<ModuleOp>();
+  if (!module || operation->getNumResults() != 1)
+    return failure();
+  auto suffix = operation->getName().getStringRef().drop_front(6);
+  std::string name = "kalandra_software_" +
+                     std::string(operation->getResult(0).getType().isF64() ? "f64_" : "f32_") +
+                     suffix.str();
+  auto helper = module.lookupSymbol<func::FuncOp>(name);
+  if (!helper) {
+    OpBuilder builder(module.getContext());
+    builder.setInsertionPointToEnd(module.getBody());
+    helper = func::FuncOp::create(
+        builder, operation->getLoc(), name,
+        builder.getFunctionType(operation->getOperandTypes(), operation->getResultTypes()));
+    helper.setPrivate();
+    builder.setInsertionPointToStart(helper.addEntryBlock());
+    OperationState state(operation->getLoc(), operation->getName());
+    state.addOperands(helper.getArguments());
+    state.addTypes(operation->getResultTypes());
+    auto *arithmetic = builder.create(state);
+    func::ReturnOp::create(builder, operation->getLoc(), arithmetic->getResults());
+    if (failed(lowerStrictCpuFloat(helper)))
+      return failure();
+  }
+  OpBuilder builder(operation);
+  auto call = func::CallOp::create(builder, operation->getLoc(), helper, operation->getOperands());
+  operation->getResult(0).replaceAllUsesWith(call.getResult(0));
+  operation->erase();
+  return success();
+}
+mlir::LogicalResult lowerMetalHardwareFloat(mlir::Operation *root, bool allowSoftwareFallback) {
+  llvm::SmallVector<mlir::Operation *> doubles;
+  root->walk([&](mlir::Operation *op) {
+    if (mlir::isa<mlir::arith::AddFOp, mlir::arith::SubFOp, mlir::arith::MulFOp,
+                  mlir::arith::DivFOp, mlir::arith::NegFOp>(op) &&
+        op->getResult(0).getType().isF64())
+      doubles.push_back(op);
+  });
+  if (!allowSoftwareFallback && !doubles.empty()) {
+    doubles.front()->emitError("Metal has no hardware float64 arithmetic; explicitly select "
+                               "--arithmetic hardware-with-software-fallback or software");
+    return mlir::failure();
+  }
+  for (auto *op : doubles) {
+    auto result = IntegerFloat<52, 11, true>(op).lower(op);
+    op->getResult(0).replaceAllUsesWith(result);
+    op->erase();
+  }
+  return mlir::success();
 }
 } // namespace kalandra

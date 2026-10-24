@@ -1,5 +1,7 @@
 # Strict binary32 arithmetic on the GPU
 
+**Current execution policy:** [Hardware arithmetic and explicit software fallback](hardware-arithmetic.md) is the default policy as of 2026-10-24. CPU float32/float64 and Metal float32 use hardware arithmetic. Metal float64 arithmetic requires explicit fallback permission. Exact-bit software proofs below describe the opt-in software implementation, not the default hardware path.
+
 Status: scalar float32 addition, subtraction, multiplication, division and scalar negation now have an integer MLIR lowering, verified through both CPU LLVM and Metal on an Apple M2 Max. Separately rounded multiply-then-add passes the same checks. This numerical backend component now also feeds private managed elementwise compute tasks. A first optional source compiler now uses it for placed rank-one elementwise functions. Strict rank-one reductions and rank-two matmul now share the lowering; general GPU arithmetic admission remains incomplete.
 
 ## Why an integer lowering

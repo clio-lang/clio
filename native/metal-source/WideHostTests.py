@@ -66,7 +66,7 @@ for name, width in (("int8", 8), ("uint8", 8), ("int16", 16), ("uint16", 16),
     for label, source in (("spawned", spawned), ("boundary", exact), ("tensor", tensor)):
         path, destination = args.root / f"{name}-{label}.k", args.root / f"{name}-{label}"
         path.write_text(source)
-        run([args.compiler, path, *flags, "-o", destination])
+        run([args.compiler,"--arithmetic","software", path, *flags, "-o", destination])
         if args.variant:
             for workers in (1, 2, 4):
                 run([destination / "program"], expected[label], dict(os.environ, KALANDRA_WORKERS=str(workers)))

@@ -45,7 +45,7 @@ def check(label, name, width, body, values, expected, rank=1, scalar="0", fault=
               f"    try await spawn operation({argument_value}{scalar}) on gpu\n")
     path, destination = args.root / f"{name}-{label}.k", args.root / f"{name}-{label}"
     path.write_text(source)
-    built = subprocess.run(list(map(str,[args.compiler,path,*flags,"-o",destination])),
+    built = subprocess.run(list(map(str,[args.compiler,"--arithmetic","software",path,*flags,"-o",destination])),
                            capture_output=True,text=True,timeout=120)
     assert built.returncode == 0, (path,built.stdout,built.stderr)
     if args.variant:

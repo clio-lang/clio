@@ -9,7 +9,7 @@ foreach(VARIANT IN ITEMS optimized sanitized thread-sanitized)
   else()
     set(FLAG --thread-sanitize)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/tensor-negation.k" --target metal
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${SOURCE_DIR}/tensor-negation.k" --target metal
     -o "${OUTPUT_DIR}/${VARIANT}" "${FLAG}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${VARIANT} compilation failed: ${OUT} ${ERROR}")
@@ -56,7 +56,7 @@ string(REPLACE "Tensor[float32, 2, 3] = tensor([[7, 8, 9], [10, 11, 12]])"
 file(WRITE "${OUTPUT_DIR}/bad.k" "${BAD}")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/bad")
 file(WRITE "${OUTPUT_DIR}/bad/host.cpp" "sentinel")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/bad.k" --target metal -o "${OUTPUT_DIR}/bad"
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/bad.k" --target metal -o "${OUTPUT_DIR}/bad"
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/bad/host.cpp" SENTINEL)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "(G001|S0)" OR NOT SENTINEL STREQUAL "sentinel")
@@ -65,7 +65,7 @@ endif()
 set(FORWARD "fn forward(values: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:\n  values\n\n")
 string(REPLACE "transfer(right, gpu)" "transfer(forward(right), gpu)" BAD "${BAD}")
 file(WRITE "${OUTPUT_DIR}/dynamic.k" "${FORWARD}${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.k" --target metal -o "${OUTPUT_DIR}/dynamic" --sanitize
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/dynamic.k" --target metal -o "${OUTPUT_DIR}/dynamic" --sanitize
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Dynamic subtraction mismatch should compile: ${OUT} ${ERROR}")
@@ -88,7 +88,7 @@ file(WRITE "${OUTPUT_DIR}/rank3.k" "${RANK3}")
 foreach(FLAG IN ITEMS -O2 --sanitize --thread-sanitize)
   string(REPLACE "--" "" NAME "${FLAG}")
   foreach(CASE IN ITEMS cpu-task rank3)
-    execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${CASE}.k" --target cpu
+    execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/${CASE}.k" --target cpu
       -o "${OUTPUT_DIR}/${CASE}-${NAME}" "${FLAG}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
     if(NOT STATUS EQUAL 0)
       message(FATAL_ERROR "CPU unary ${CASE} compilation: ${OUT} ${ERROR}")
@@ -110,7 +110,7 @@ endforeach()
 # Negation is not implicit await.
 string(REPLACE "    negated = try await work" "    negated = -work" BAD "${CPU_MAIN}")
 file(WRITE "${OUTPUT_DIR}/pending.k" "${FUNCTIONS}${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/pending.k" --target cpu
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/pending.k" --target cpu
   -o "${OUTPUT_DIR}/pending" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "S017")
   message(FATAL_ERROR "Pending tensor negation bypassed task typing: ${ERROR}")
@@ -118,7 +118,7 @@ endif()
 # A zero outer dimension still preserves the complete matrix shape.
 set(EMPTY "fn main() -> Tensor[float32,0,3] ! TaskError:\n  try parallel:\n    gpu = devices.gpu()\n    values: Tensor[float32,0,3] = tensor([], [0, 3])\n    uploaded = try await transfer(values,gpu)\n    negated = try await spawn negative(uploaded) on gpu\n    try await transfer(negated,devices.cpu())\n")
 file(WRITE "${OUTPUT_DIR}/empty.k" "${FUNCTIONS}${EMPTY}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/empty.k" --target metal
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/empty.k" --target metal
   -o "${OUTPUT_DIR}/empty" --sanitize RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Empty matrix negation compilation: ${ERROR}")

@@ -25,7 +25,7 @@ Float-to-integer conversion truncates toward zero and fails for NaN, infinity or
 
 h2 { "Arithmetic is checked" }
 
-Integer overflow, invalid integer division and invalid conversions produce checked faults. Optimization does not turn signed overflow into wrapping behavior. Floating-point operations retain the strict numerical contract, including separately rounded products and a specified reduction tree; do not infer fast-math behavior from -O2.
+Integer overflow, invalid integer division and invalid conversions produce checked faults. Optimization does not turn signed overflow into wrapping behavior. Floating-point operations keep separate products and additions and a specified reduction tree; -O2 does not enable fast math.
 
 Arithmetic and comparisons require compatible types. Numeric arrays and tensors keep one element identity, and tensor conversion preserves shape. An integer type does not automatically become suitable for every GPU operation; use the documented GPU numerical subset.
 
@@ -36,3 +36,10 @@ link { url = "/docs/tensors", "Numeric tensor operations" }
 link { url = "/docs/gpu-numerics", "GPU numerical semantics" }
 
 link { url = "https://github.com/kalandra-lang/kalandra/blob/native/docs/design/numbers.md", "Numeric rules and conversion details" }
+
+
+h2 { "Arithmetic execution policy" }
+
+CPU float32 and float64 arithmetic use hardware floating-point instructions by default. Floating comparisons and checked conversions also use hardware where supported. Integer overflow and conversion range checks remain enabled.
+
+Use --arithmetic software to select the strict integer-based floating implementation. Hardware mode follows the target floating environment and does not promise identical subnormal, NaN or rounding behavior across all devices. The balanced reduction order and separate multiply/add operations remain unchanged; -O2 does not enable fast math.

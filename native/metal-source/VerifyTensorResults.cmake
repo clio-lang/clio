@@ -6,7 +6,7 @@ function(build_run NAME CONTENT EXPECTED FAILURE)
     set(FLAG "${ARGV4}")
   endif()
   file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}" "${FLAG}"
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}" "${FLAG}"
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME}: build failed: ${OUT} ${ERROR}")

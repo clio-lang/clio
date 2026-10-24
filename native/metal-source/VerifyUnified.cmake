@@ -1,5 +1,5 @@
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
-execute_process(COMMAND "${COMPILER}" --target metal "${SOURCE_DIR}/placed.k" -o "${OUTPUT_DIR}/metal" -O2
+execute_process(COMMAND "${COMPILER}" --arithmetic software --target metal "${SOURCE_DIR}/placed.k" -o "${OUTPUT_DIR}/metal" -O2
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Common compiler Metal build failed: ${OUT} ${ERROR}")
@@ -8,7 +8,7 @@ execute_process(COMMAND "${OUTPUT_DIR}/metal/program" RESULT_VARIABLE STATUS OUT
 if(NOT STATUS EQUAL 0 OR NOT OUT STREQUAL "[40a00000,41400000,41a80000]\n")
   message(FATAL_ERROR "Common compiler GPU program failed: ${STATUS} ${OUT} ${ERROR}")
 endif()
-execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/cpu-consumer.k" --target cpu -o "${OUTPUT_DIR}/cpu"
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${SOURCE_DIR}/cpu-consumer.k" --target cpu -o "${OUTPUT_DIR}/cpu"
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Explicit CPU target regressed: ${OUT} ${ERROR}")
@@ -26,7 +26,7 @@ foreach(OPTION IN ITEMS unknown missing duplicate)
   else()
     set(ARGS --target cpu --target metal)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/placed.k" -o "${OUTPUT_DIR}/cpu" ${ARGS}
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${SOURCE_DIR}/placed.k" -o "${OUTPUT_DIR}/cpu" ${ARGS}
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "target")
     message(FATAL_ERROR "Invalid target was accepted: ${ERROR}")

@@ -1,4 +1,5 @@
 #pragma once
+#include "kalandra/Arithmetic.h"
 #include "kalandra/Semantics.h"
 #include <expected>
 #include <span>
@@ -19,6 +20,7 @@ std::string numericReductionShader(NumericType);
 struct NumericShaderOptions {
   std::span<const std::uint8_t> deviceScalarParameters{};
   bool boolResult = false;
+  ArithmeticMode arithmetic = ArithmeticMode::Hardware;
 };
 std::expected<NumericShader, Diagnostic> emitNumericShader(const TypedModule &, FunctionId,
                                                            const NumericShaderOptions & = {});

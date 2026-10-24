@@ -1053,3 +1053,43 @@ if(WIN32)
     endif()
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  add_test(NAME native-arithmetic-policy
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/ArithmeticPolicyTests.py"
+      --compiler "$<TARGET_FILE:kalandra>" --output "${CMAKE_CURRENT_BINARY_DIR}/arithmetic-policy")
+  set_tests_properties(native-arithmetic-policy PROPERTIES TIMEOUT 300)
+  add_test(NAME native-cpu-benchmark-cells
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/CpuBenchmarkCells.py"
+      --compiler "$<TARGET_FILE:kalandra>" --clang "${CMAKE_CXX_COMPILER}"
+      --output "${CMAKE_CURRENT_BINARY_DIR}/benchmark-cells")
+  set_tests_properties(native-cpu-benchmark-cells PROPERTIES TIMEOUT 180)
+  add_test(NAME native-fast-calls
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/FastCallTests.py"
+      --compiler "$<TARGET_FILE:kalandra>" --clang "${CMAKE_CXX_COMPILER}"
+      --output "${CMAKE_CURRENT_BINARY_DIR}/fast-calls")
+  set_tests_properties(native-fast-calls PROPERTIES TIMEOUT 600)
+  add_test(NAME native-tail-calls
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/TailCallTests.py"
+      --compiler "$<TARGET_FILE:kalandra>" --clang "${CMAKE_CXX_COMPILER}"
+      --output "${CMAKE_CURRENT_BINARY_DIR}/tail-calls")
+  set_tests_properties(native-tail-calls PROPERTIES TIMEOUT 900)
+  add_test(NAME native-tail-calls-software
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/TailCallTests.py"
+      --compiler "$<TARGET_FILE:kalandra>" --clang "${CMAKE_CXX_COMPILER}"
+      --arithmetic software --output "${CMAKE_CURRENT_BINARY_DIR}/tail-calls-software")
+  set_tests_properties(native-tail-calls-software PROPERTIES TIMEOUT 900)
+  add_test(NAME native-total-hardware-casts
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/TotalCastTests.py"
+      --compiler "$<TARGET_FILE:kalandra>" --clang "${CMAKE_CXX_COMPILER}"
+      --output "${CMAKE_CURRENT_BINARY_DIR}/total-casts")
+  set_tests_properties(native-total-hardware-casts PROPERTIES TIMEOUT 900)
+  add_test(NAME native-fair-benchmark-evidence
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/FairBenchmarkTests.py")
+  set_tests_properties(native-fair-benchmark-evidence PROPERTIES TIMEOUT 30)
+  add_test(NAME native-cpu-optimization
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/CpuOptimizationTests.py"
+      --compiler "$<TARGET_FILE:kalandra>" --clang "${CMAKE_CXX_COMPILER}"
+      --output "${CMAKE_CURRENT_BINARY_DIR}/cpu-optimization")
+  set_tests_properties(native-cpu-optimization PROPERTIES TIMEOUT 600)
+endif()

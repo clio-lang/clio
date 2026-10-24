@@ -1,12 +1,10 @@
 type Outcome:
-  error:TaskError
-fn unsafe(error:TaskError)->fn(int)->int:
+  error:fn(int)->int
+fn unsafe(error:fn(int)->int)->fn(int)->int:
   outcome=Outcome {error:error}
   fn(value:int):
-    match outcome.error:
-      TaskError.Fault {kind}:value
-      _:0
-fn run(error:TaskError)->[int] ! TaskError:
+    outcome.error(value)
+fn run(error:fn(int)->int)->[int] ! TaskError:
   input:[int]=[]
   callback=unsafe(error)
   try parallelMap(input,callback)

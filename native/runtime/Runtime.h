@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <type_traits>
 
 namespace kalandra::runtime {
 struct Owner;
@@ -41,9 +42,12 @@ public:
   ~Invocation();
   Invocation(const Invocation &) = delete;
   Invocation &operator=(const Invocation &) = delete;
-  void bindCancellation(const std::atomic<bool> *token) noexcept { cancellation_ = token; }
+  void bindCancellation(const std::atomic<bool> *token) noexcept {
+    cancellation_ = token;
+    if (pollMode_ < 2) pollMode_ = token ? 1 : 0;
+  }
   // Private test probe; its atomic counter must outlive this invocation.
-  void watchPolls(std::atomic<std::uint64_t> *counter) noexcept { pollCounter_ = counter; }
+  void watchPolls(std::atomic<std::uint64_t> *counter) noexcept { pollCounter_ = counter; pollMode_ = 2; }
   std::int64_t poll() noexcept {
     if (pollCounter_)
       pollCounter_->fetch_add(1, std::memory_order_relaxed);
@@ -130,6 +134,7 @@ public:
   std::uint64_t releases() const noexcept { return releases_; }
 
 private:
+  friend struct InvocationABI;
   Owner *head_ = nullptr;
   std::atomic<std::uint64_t> live_{0};
   const std::atomic<bool> *cancellation_ = nullptr;
@@ -146,6 +151,11 @@ private:
   bool settled_ = false;
   std::int64_t taskError_ = 0, expectedCode_ = 0, expectedLine_ = 0, expectedColumn_ = 0;
   const char *applicationFamily_ = nullptr, *applicationVariant_ = nullptr;
+  // 0: clear; 1: acquire-load the bound cancellation token; 2: observed/faulted/settled.
+  std::uint8_t pollMode_ = 0;
+  // A lease lasts only while a synchronous generated native call chain is live.
+  // All exits clear it at its logical entry depth, before worker migration.
+  [[maybe_unused]] std::uint64_t stackLeaseDepth_ = 0, stackLow_ = 0, stackHigh_ = 0;
   const void *makeRecursiveValueImpl(std::span<const std::byte>, const void *,
                                      std::span<const AllocationLease>, std::span<const void *const>,
                                      bool) noexcept;
@@ -153,6 +163,19 @@ private:
   void attach(Owner *owner) noexcept;
   void remove(Owner *owner) noexcept;
 };
+// Native compiler and runtime are built for the same pinned host ABI. Keep the
+// field access used by checked fast paths explicit and mechanically verified.
+struct InvocationABI {
+  static constexpr std::size_t pollMode = offsetof(Invocation, pollMode_);
+  static constexpr std::size_t cancellation = offsetof(Invocation, cancellation_);
+  static constexpr std::size_t leaseDepth = offsetof(Invocation, stackLeaseDepth_);
+  static constexpr std::size_t stackLow = offsetof(Invocation, stackLow_);
+  static constexpr std::size_t stackHigh = offsetof(Invocation, stackHigh_);
+  static constexpr std::size_t depth = offsetof(Invocation, callDepth_);
+};
+static_assert(std::is_standard_layout_v<Invocation>);
+static_assert(sizeof(void *) == 8 && sizeof(std::atomic<bool>) == 1 &&
+              alignof(std::atomic<bool>) == 1 && std::atomic<bool>::is_always_lock_free);
 } // namespace kalandra::runtime
 
 // Revision is encoded in the symbols: mismatched compiler/runtime builds fail

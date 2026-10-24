@@ -69,7 +69,7 @@ def main():
     bundle = build / 'kernels'
     binary = build / 'scaling'
     commands = [[args.compiler.resolve(), ROOT / 'native/benchmarks/gpu.k',
-                 '--target', 'metal', '-o', bundle, '-O2']]
+                 '--target', 'metal', '--arithmetic', 'software', '-o', bundle, '-O2']]
     flags = ['-std=c++23', '-Wall', '-Wextra', '-Werror', '-O2', '-DNDEBUG', '-ffp-contract=off']
     objects = []
     for index, source in enumerate([ROOT / 'native/benchmarks/GpuScaling.mm', ROOT / 'native/metal/Metal.mm',
@@ -159,7 +159,7 @@ def main():
     machine = {}
     for key in ['machdep.cpu.brand_string', 'hw.logicalcpu', 'hw.perflevel0.logicalcpu', 'hw.perflevel1.logicalcpu', 'hw.memsize']:
         machine[key] = run(['sysctl', '-n', key]).strip()
-    result = dict(timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    result = dict(arithmetic='software', timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                   platform=platform.platform(), machine=machine, revision=run(['git', 'rev-parse', 'HEAD']).strip(),
                   worktree_status=run(['git', 'status', '--short']),
                   protocol=dict(suite=args.suite, controlled_scalar_baseline=bool(args.baseline_metal_source) and not args.baseline_adaptive_matmul,

@@ -10,7 +10,7 @@ foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
     set(FLAG --thread-sanitize)
   endif()
   set(DEST "${OUTPUT_DIR}/${VARIANT}")
-  execute_process(COMMAND "${COMPILER}" "${SOURCE}" --target metal -o "${DEST}" ${FLAG}
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${SOURCE}" --target metal -o "${DEST}" ${FLAG}
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${VARIANT}: typed supervisor compilation failed: ${STATUS}: ${OUT} ${ERROR}")

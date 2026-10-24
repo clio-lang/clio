@@ -2,7 +2,7 @@ file(READ "${SOURCE_DIR}/nested-parallel.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 function(build_run NAME CONTENT EXPECTED FLAG)
   file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/${NAME}.k" --target metal
     -o "${OUTPUT_DIR}/${NAME}" ${FLAG} RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME} compilation: ${STATUS}: ${OUT} ${ERROR}")
@@ -30,7 +30,7 @@ foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
 endforeach()
 file(SHA256 "${OUTPUT_DIR}/optimized/host.cpp" HOST)
 file(SHA256 "${OUTPUT_DIR}/optimized/cpu.ll" CPU)
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/optimized.k" --target metal
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/optimized.k" --target metal
   -o "${OUTPUT_DIR}/optimized" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(SHA256 "${OUTPUT_DIR}/optimized/host.cpp" HOST_AGAIN)
 file(SHA256 "${OUTPUT_DIR}/optimized/cpu.ll" CPU_AGAIN)
@@ -49,7 +49,7 @@ function(reject NAME CONTENT PATTERN)
   file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/${NAME}.k" --target metal
     -o "${OUTPUT_DIR}/${NAME}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   file(READ "${OUTPUT_DIR}/${NAME}/host.cpp" SENTINEL)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "${PATTERN}" OR NOT SENTINEL STREQUAL "sentinel")
@@ -87,7 +87,7 @@ reject(hidden-download "${BAD}" "explicit transfer")
 set(FIXED "fn fixed(values:Tensor[float32,2]) -> float32:\n  reduceSum(values)\n\nfn forward(values:Tensor[float32,?]) -> Tensor[float32,?]:\n  values\n\n")
 string(REPLACE "try await spawn total(host)" "try await spawn fixed(forward(host))" BAD "${SOURCE}")
 file(WRITE "${OUTPUT_DIR}/dynamic.k" "${FIXED}${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.k" --target metal
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/dynamic.k" --target metal
   -o "${OUTPUT_DIR}/dynamic" --sanitize RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Dynamic nested task mismatch should compile: ${OUT} ${ERROR}")

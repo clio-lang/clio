@@ -64,7 +64,7 @@ int main() {
                 dump.find("add.f64 strict") != std::string::npos,
             "typed IR lost literal/arithmetic precision");
 #ifndef KALANDRA_FLOAT64_FRONTEND_ONLY
-    auto native = lowerNative(*typed.module);
+    auto native = lowerNative(*typed.module, {}, {}, ArithmeticMode::Software);
     require(bool(native), "binary64 lowering failed");
     require(native->llvm.find("_mlir_ciface_kalandra_float64_entry") != std::string::npos &&
                 native->llvm.find("fadd double") == std::string::npos &&
@@ -83,8 +83,8 @@ int main() {
       require(!lowerNative(forged), "forged unsupported tensor reached backend lowering");
     }
 #endif
-    require(bool(numericCapabilityError(*typed.module, NumericTarget::AppleGpu)),
-            "binary64 GPU arithmetic admitted");
+    require(!numericCapabilityError(*typed.module, NumericTarget::AppleGpu),
+            "binary64 GPU numerical capability rejected");
     auto task = analyze("fn identity(x:float) -> float:\n  x\nfn main() -> float ! TaskError:\n  "
                         "try parallel:\n    try await spawn identity(1.0000000000000002)\n");
     require(task.ok(), "float64 worker call rejected");

@@ -1,5 +1,7 @@
 # Native Apple GPU capability matrix
 
+**Current execution policy:** [Hardware arithmetic and explicit software fallback](hardware-arithmetic.md) is the default policy as of 2026-10-24. CPU float32/float64 and Metal float32 use hardware arithmetic. Metal float64 arithmetic requires explicit fallback permission. Exact-bit software proofs below describe the opt-in software implementation, not the default hardware path.
+
 This describes the current `--target metal` source backend, rather than every
 operation the runtime or CPU compiler can represent. **GPU** means computation
 inside a dispatched kernel; **Host** means the generated CPU coordinator in a

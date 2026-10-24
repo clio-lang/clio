@@ -15,7 +15,7 @@ if(DEFINED VARIANT)
 endif()
 function(compile NAME SOURCE)
   file(WRITE "${ROOT}/${NAME}.k" "${SOURCE}")
-  execute_process(COMMAND "${COMPILER}" "${ROOT}/${NAME}.k" ${TARGET_FLAGS} -o "${OUTPUT_DIR}/${NAME}" ${FLAGS}
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${ROOT}/${NAME}.k" ${TARGET_FLAGS} -o "${OUTPUT_DIR}/${NAME}" ${FLAGS}
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME}: ${STATUS}: ${OUT} ${ERROR}")

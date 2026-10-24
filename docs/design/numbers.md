@@ -1,5 +1,7 @@
 # Kalandra numeric types and arithmetic proposal
 
+**Current execution policy:** [Hardware arithmetic and explicit software fallback](hardware-arithmetic.md) is the default policy as of 2026-10-24. CPU float32/float64 and Metal float32 use hardware arithmetic. Metal float64 arithmetic requires explicit fallback permission. Exact-bit software proofs below describe the opt-in software implementation, not the default hardware path.
+
 Accepted numeric design — 2026-10-14. The project owner approved the default widths, literal typing, conversions, and arithmetic rules below. They describe the fresh implementation, not behavior of the released Kalandra 0.13 compiler. Error propagation is accepted separately; tensor/reduction extensions are accepted in the tensor design.
 
 Use convenient defaults for everyday code and explicit widths for memory layout, native interfaces, and tensors. Arithmetic should have predictable types, diagnose mistakes, and preserve safety in optimized builds. CPU, GPU, and remote execution must not silently change a declared type or precision.

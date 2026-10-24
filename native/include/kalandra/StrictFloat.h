@@ -1,4 +1,5 @@
 #pragma once
+#include "kalandra/Arithmetic.h"
 #include "mlir/Support/LogicalResult.h"
 namespace mlir {
 class Operation;
@@ -16,4 +17,6 @@ mlir::LogicalResult lowerStrictGpuFloat64(mlir::Operation *root);
 // this entry point rejects GPU/SPIR-V modules. Source admission and typed
 // native/worker ABI validation belong to their respective compiler layers.
 mlir::LogicalResult lowerStrictCpuFloat(mlir::Operation *root);
+mlir::LogicalResult lowerOutlinedStrictCpuFloat(mlir::Operation *operation);
+mlir::LogicalResult lowerMetalHardwareFloat(mlir::Operation *root, bool allowSoftwareFallback);
 } // namespace kalandra

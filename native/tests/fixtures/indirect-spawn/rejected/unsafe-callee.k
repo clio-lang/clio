@@ -1,11 +1,9 @@
 type Outcome:
-  error:TaskError
-fn run(error:TaskError)->int ! TaskError:
+  error:fn(int)->int
+fn run(error:fn(int)->int)->int ! TaskError:
   outcome=Outcome {error:error}
   f=fn(value:int):
-    match outcome.error:
-      TaskError.Fault {kind}:value
-      _:0
+    outcome.error(value)
   try parallel:
     try await spawn f(42)
 fn main()->int:

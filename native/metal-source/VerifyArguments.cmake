@@ -11,7 +11,7 @@ foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
   else()
     set(FLAG --thread-sanitize)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/arguments.k" --target metal
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${SOURCE_DIR}/arguments.k" --target metal
     -o "${OUTPUT_DIR}/${VARIANT}" "${FLAG}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${VARIANT} argument build failed: ${OUT} ${ERROR}")
@@ -58,7 +58,7 @@ function(reject NAME CONTENT DIAGNOSTIC)
   file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}"
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}"
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   file(READ "${OUTPUT_DIR}/${NAME}/host.cpp" SENTINEL)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "${DIAGNOSTIC}" OR NOT SENTINEL STREQUAL "sentinel")
@@ -69,7 +69,7 @@ string(REPLACE "t28: Tensor[float32, ?])" "t28: Tensor[float32, ?], t29: Tensor[
 string(REPLACE "vectorResult) on gpu" "vectorResult, vectorResult) on gpu" BAD "${BAD}")
 string(REPLACE "t27 + t28\n" "t27 + t28 + t29\n" BAD "${BAD}")
 file(WRITE "${OUTPUT_DIR}/thirty.k" "${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/thirty.k" --target metal
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/thirty.k" --target metal
   -o "${OUTPUT_DIR}/thirty" -O2 RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Thirty contributing inputs rejected: ${OUT} ${ERROR}")
@@ -93,7 +93,7 @@ string(REPLACE "Tensor[float32, 2, 3] = tensor([[2, 3, 4], [5, 6, 7]])"
   "Tensor[float32, 3, 2] = tensor([[2, 3], [4, 5], [6, 7]])" BAD "${GPU_ONLY}")
 string(REPLACE "transfer(c, gpu)" "transfer(forward(c), gpu)" BAD "${BAD}")
 file(WRITE "${OUTPUT_DIR}/dynamic.k" "${FORWARD}${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.k" --target metal -o "${OUTPUT_DIR}/dynamic" --sanitize
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/dynamic.k" --target metal -o "${OUTPUT_DIR}/dynamic" --sanitize
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Dynamic wide arguments did not compile: ${OUT} ${ERROR}")

@@ -92,7 +92,8 @@ int main(int argc, char **argv) {
     } else {
       filtered.push_back(argv[i]);
       if ((option == "-o" || option == "--emit-mlir" || option == "--emit-llvm" ||
-           option == "--test-entry" || option == "--package" || option == "--project") &&
+           option == "--test-entry" || option == "--arithmetic" || option == "--package" ||
+           option == "--project") &&
           i + 1 < argc)
         filtered.push_back(argv[++i]);
     }
@@ -130,7 +131,9 @@ int main(int argc, char **argv) {
   if (arguments.size() < 2) {
     std::cerr
         << "usage: kalandra source.k -o executable [--emit-mlir file] [--emit-llvm "
-           "file] [--test-entry function] [--sanitize|--thread-sanitize] [-O0|-O2] [--target "
+           "file] [--test-entry function] [--arithmetic "
+           "hardware|software|hardware-with-software-fallback] [--sanitize|--thread-sanitize] "
+           "[-O0|-O2] [--target "
            "cpu|metal] [--package name=path.k ...] [--project manifest.toml instead of source]\n"
            "       kalandra new directory\n";
     return 2;
@@ -141,6 +144,8 @@ int main(int argc, char **argv) {
   std::optional<kalandra::NativeProject> project;
   std::vector<kalandra::ModulePackage> packages;
   bool sanitize = false, threadSanitize = false;
+  kalandra::ArithmeticMode arithmetic = kalandra::ArithmeticMode::Hardware;
+  bool selectedArithmetic = false;
   std::string optimization = "-O0";
   for (std::size_t i = 1; i < arguments.size(); ++i) {
     const std::string option = arguments[i];
@@ -170,6 +175,14 @@ int main(int argc, char **argv) {
         }
         packages.push_back(std::move(*package));
       }
+    } else if (option == "--arithmetic" && !selectedArithmetic && i + 1 < arguments.size()) {
+      auto mode = kalandra::parseArithmeticMode(arguments[++i]);
+      if (!mode) {
+        std::cerr << "invalid --arithmetic mode\n";
+        return 2;
+      }
+      arithmetic = *mode;
+      selectedArithmetic = true;
     } else if (option == "--sanitize")
       sanitize = true;
     else if (option == "--thread-sanitize")
@@ -281,7 +294,7 @@ int main(int argc, char **argv) {
       std::cerr << kalandra::renderDiagnostic(*typed.source, d);
     return 1;
   }
-  auto lowered = kalandra::lowerNative(*typed.module, testEntry);
+  auto lowered = kalandra::lowerNative(*typed.module, testEntry, {}, arithmetic);
   if (!lowered) {
     std::cerr << "native lowering: " << lowered.error() << '\n';
     return 1;

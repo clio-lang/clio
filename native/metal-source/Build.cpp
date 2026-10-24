@@ -1,4 +1,5 @@
 #include "Build.h"
+#include "HardwareShaders.h"
 #include "Toolchain.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
@@ -114,7 +115,7 @@ std::string resource(const char *configured, bool include = false) {
 } // namespace
 void buildMetalProgram(const std::filesystem::path &directory,
                        const std::map<std::string, std::string> &outputs,
-                       const std::string &variant) {
+                       const std::string &variant, kalandra::ArithmeticMode arithmetic) {
   const auto strict = resource(KALANDRA_GPU_STRICT);
   const auto strict64 = resource(KALANDRA_GPU_STRICT64);
   const auto extract = resource(KALANDRA_GPU_EXTRACT);
@@ -139,7 +140,13 @@ void buildMetalProgram(const std::filesystem::path &directory,
       continue;
     auto base = (directory / std::filesystem::path(name).stem()).string();
     const bool numeric = contents.find("@kalandra_numeric_v1_") != std::string::npos;
-    run({numeric ? strict64 : strict, base + ".mlir", base + ".lowered.mlir"});
+    std::vector<std::string> lowering{numeric ? strict64 : strict, base + ".mlir",
+                                      base + ".lowered.mlir"};
+    if (arithmetic != kalandra::ArithmeticMode::Software)
+      lowering.push_back(arithmetic == kalandra::ArithmeticMode::Hardware
+                             ? "--hardware"
+                             : "--allow-software-fallback");
+    run(std::move(lowering));
     run({opt, base + ".lowered.mlir", "--verify-each",
          "--pass-pipeline=builtin.module(canonicalize,cse,convert-gpu-to-spirv,spirv.module(spirv-"
          "lower-abi-attrs,spirv-update-vce))",
@@ -161,6 +168,15 @@ void buildMetalProgram(const std::filesystem::path &directory,
                                  "--msl-device-argument-buffer", "0",
                                  "--msl-force-active-argument-buffer-resources"});
     run(std::move(cross));
+    if (!numeric && arithmetic != kalandra::ArithmeticMode::Software) {
+      std::ofstream optimized(base + ".metal", std::ios::app);
+      if (contents.find("@kalandra_reduce_sum(") != std::string::npos)
+        optimized << hardwareReductionShader;
+      if (contents.find("@kalandra_matmul(") != std::string::npos)
+        optimized << hardwareMatmulShader;
+      if (!optimized)
+        throw std::runtime_error("cannot emit hardware Metal entries");
+    }
     run({metalCompiler, "-mmacosx-version-min=" KALANDRA_NATIVE_MACOS_MINIMUM, "-isysroot", sdk,
          std::string("-std=") + (numeric ? KALANDRA_GPU_TYPED_METAL_LANGUAGE : "macos-metal2.2"),
          "-fno-fast-math", "-ffp-contract=off",

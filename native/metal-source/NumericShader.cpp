@@ -206,6 +206,21 @@ class Emitter {
                      : op == ComparisonKind::Greater   ? (u ? P::ugt : P::sgt)
                                                        : (u ? P::uge : P::sge);
       result = cmp(header, p, x, y);
+    } else if (bits == 32 && options.arithmetic != ArithmeticMode::Software) {
+      auto fx =
+          arith::BitcastOp::create(header, loc(), header.getF32Type(),
+                                   arith::TruncIOp::create(header, loc(), header.getI32Type(), x));
+      auto fy =
+          arith::BitcastOp::create(header, loc(), header.getF32Type(),
+                                   arith::TruncIOp::create(header, loc(), header.getI32Type(), y));
+      using F = arith::CmpFPredicate;
+      const auto predicate = op == ComparisonKind::Equal       ? F::OEQ
+                             : op == ComparisonKind::NotEqual  ? F::UNE
+                             : op == ComparisonKind::Less      ? F::OLT
+                             : op == ComparisonKind::LessEqual ? F::OLE
+                             : op == ComparisonKind::Greater   ? F::OGT
+                                                               : F::OGE;
+      result = arith::CmpFOp::create(header, loc(), predicate, fx, fy);
     } else {
       auto mask = c(header, (UINT64_C(1) << (bits - 1)) - 1),
            sign = c(header, UINT64_C(1) << (bits - 1));
@@ -357,8 +372,8 @@ public:
         if (out.boolean)
           reject(node.span, "GPU numeric conversion requires a numeric value");
         auto &b = out.tensor ? lane : header;
-        auto [converted, valid] =
-            gpuNumericConversion(b, loc(), materialize(out), out.element, node.type.element);
+        auto [converted, valid] = gpuNumericConversion(b, loc(), materialize(out), out.element,
+                                                       node.type.element, options.arithmetic);
         out.value = converted;
         out.valid = both(lane, out.valid, valid);
         if (!out.tensor)

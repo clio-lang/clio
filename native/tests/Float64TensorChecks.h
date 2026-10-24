@@ -7,14 +7,14 @@ static void checkFloat64Tensors() {
         expression + "\nfn main() -> float:\n  0\n");
     require(typed.ok(), expression);
 #ifndef KALANDRA_FLOAT64_FRONTEND_ONLY
-    auto native = lowerNative(*typed.module);
+    auto native = lowerNative(*typed.module, {}, {}, ArithmeticMode::Software);
     require(bool(native), "float64 tensor backend rejected");
     require(native->llvm.find("fadd double") == std::string::npos &&
                 native->llvm.find("fmul double") == std::string::npos,
             "float64 tensor arithmetic bypassed strict lowering");
 #endif
-    require(bool(numericCapabilityError(*typed.module, NumericTarget::AppleGpu)),
-            "float64 tensor GPU arithmetic admitted");
+    require(!numericCapabilityError(*typed.module, NumericTarget::AppleGpu),
+            "float64 tensor GPU numerical capability rejected");
   }
   for (auto shape : {"", ",4", ",2,2", ",2,2,1"}) {
     const auto values =
@@ -29,7 +29,8 @@ static void checkFloat64Tensors() {
                          "\nfn main() -> float:\n  0\n");
     require(typed.ok(), "ranked binary64 tensor literal rejected");
 #ifndef KALANDRA_FLOAT64_FRONTEND_ONLY
-    require(bool(lowerNative(*typed.module)), "ranked binary64 literal lowering rejected");
+    require(bool(lowerNative(*typed.module, {}, {}, ArithmeticMode::Software)),
+            "ranked binary64 literal lowering rejected");
 #endif
   }
   for (auto shape : {"", ",?", ",?,?", ",?,?,?"}) {
@@ -37,14 +38,15 @@ static void checkFloat64Tensors() {
                          "]) -> float:\n  reduceSum(x)\nfn main() -> float:\n  0\n");
     require(typed.ok(), "float64 reduction rejected");
 #ifndef KALANDRA_FLOAT64_FRONTEND_ONLY
-    auto native = lowerNative(*typed.module);
+    auto native = lowerNative(*typed.module, {}, {}, ArithmeticMode::Software);
     require(bool(native), "float64 reduction lowering rejected");
     require(native->llvm.find("fadd double") == std::string::npos,
             "float64 reduction bypassed strict arithmetic");
     for (auto &expression : typed.module->expressions)
       if (std::holds_alternative<ReduceSum>(expression.operation))
         expression.type.element = NumericType::Float32;
-    require(!lowerNative(*typed.module), "mismatched reduction element type admitted");
+    require(!lowerNative(*typed.module, {}, {}, ArithmeticMode::Software),
+            "mismatched reduction element type admitted");
 #endif
   }
   struct Bad {
@@ -86,7 +88,7 @@ static void checkFloat64Tensors() {
       "fn f(x:Tensor[float,?]) -> Tensor[float,?]:\n  x+1\nfn main() -> float ! TaskError:\n  try "
       "parallel:\n    x:Tensor[float,1]=tensor([1])\n    try await spawn f(x)\n    0\n");
   require(typed.ok(), "float64 tensor task rejected");
-  auto native = lowerNative(*typed.module);
+  auto native = lowerNative(*typed.module, {}, {}, ArithmeticMode::Software);
   require(bool(native) && native->llvm.find("value.layout.tensor.float64.1") != std::string::npos,
           "float64 tensor task lost typed layout");
 #endif

@@ -27,7 +27,8 @@ bool save(ModuleOp module, const char *path) {
 SmallVector<Value> convert(OpBuilder &b, Location loc, Value input, Value mode, NumericType source,
                            unsigned n = 0) {
   if (n + 1 == numericTypes.size()) {
-    auto [bits, valid] = gpuNumericConversion(b, loc, input, source, numericTypes[n].type);
+    auto [bits, valid] =
+        gpuNumericConversion(b, loc, input, source, numericTypes[n].type, ArithmeticMode::Software);
     return {bits, valid};
   }
   auto which = arith::ConstantIntOp::create(b, loc, n, 32);
@@ -36,7 +37,8 @@ SmallVector<Value> convert(OpBuilder &b, Location loc, Value input, Value mode, 
   {
     OpBuilder::InsertionGuard guard(b);
     b.setInsertionPointToStart(&branch.getThenRegion().front());
-    auto [bits, valid] = gpuNumericConversion(b, loc, input, source, numericTypes[n].type);
+    auto [bits, valid] =
+        gpuNumericConversion(b, loc, input, source, numericTypes[n].type, ArithmeticMode::Software);
     scf::YieldOp::create(b, loc, ValueRange{bits, valid});
   }
   {

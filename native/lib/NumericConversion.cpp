@@ -1,4 +1,5 @@
 #include "kalandra/NumericConversion.h"
+#include "kalandra/HardwareConversion.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 namespace kalandra {
 namespace {
@@ -121,7 +122,22 @@ public:
 } // namespace
 std::pair<mlir::Value, mlir::Value> numericConversion(mlir::OpBuilder &builder, mlir::Location loc,
                                                       mlir::Value input, NumericType source,
-                                                      NumericType destination) {
-  return Converter(builder, loc).run(input, source, destination);
+                                                      NumericType destination,
+                                                      ArithmeticMode arithmetic) {
+  // Every supported integer has at most 64 bits: both float formats cover its
+  // entire finite range. Float32-to-float64 is also total. Avoid constructing
+  // the software rounding/range machinery merely to prove these casts valid;
+  // the target FPU still performs the one requested rounding operation.
+  if (arithmetic != ArithmeticMode::Software && source != destination &&
+      !isInteger(destination) &&
+      (isInteger(source) || (source == NumericType::Float32 && destination == NumericType::Float64))) {
+    auto valid = mlir::arith::ConstantIntOp::create(builder, loc, 1, 1);
+    return {hardwareConversion(builder, loc, input, source, destination, valid), valid};
+  }
+  auto result = Converter(builder, loc).run(input, source, destination);
+  if (arithmetic != ArithmeticMode::Software && source != destination &&
+      !(isInteger(source) && isInteger(destination)))
+    result.first = hardwareConversion(builder, loc, input, source, destination, result.second);
+  return result;
 }
 } // namespace kalandra

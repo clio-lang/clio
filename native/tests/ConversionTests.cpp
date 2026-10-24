@@ -19,7 +19,7 @@ int main() {
         auto typed = analyze("fn convert(value:" + std::string(source) + ") -> " + destination +
                              ":\n  " + destination + "(value)\nfn main() -> int64:\n  0\n");
         require(typed.ok(), "scalar conversion rejected");
-        auto lowered = lowerNative(*typed.module);
+        auto lowered = lowerNative(*typed.module, {}, {}, ArithmeticMode::Software);
         require(bool(lowered), "conversion lowering rejected");
         require(lowered->llvm.find("fptosi") == std::string::npos &&
                     lowered->llvm.find("fptoui") == std::string::npos &&

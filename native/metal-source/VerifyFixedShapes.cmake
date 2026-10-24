@@ -6,7 +6,7 @@ file(READ "${ROOT}/library.k" LIBRARY)
 
 function(compile NAME SOURCE)
   file(WRITE "${ROOT}/${NAME}.k" "${SOURCE}")
-  execute_process(COMMAND "${COMPILER}" "${ROOT}/${NAME}.k" ${TARGET_FLAGS} -o "${OUTPUT_DIR}/${NAME}" ${FLAGS}
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${ROOT}/${NAME}.k" ${TARGET_FLAGS} -o "${OUTPUT_DIR}/${NAME}" ${FLAGS}
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME}: ${STATUS}: ${OUT} ${ERROR}")
@@ -29,7 +29,7 @@ function(reject NAME SOURCE)
   file(WRITE "${ROOT}/${NAME}.k" "${SOURCE}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" sentinel)
-  execute_process(COMMAND "${COMPILER}" "${ROOT}/${NAME}.k" -o "${OUTPUT_DIR}/${NAME}"
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${ROOT}/${NAME}.k" -o "${OUTPUT_DIR}/${NAME}"
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   file(READ "${OUTPUT_DIR}/${NAME}/host.cpp" CONTENT)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "(S011|S033)" OR NOT CONTENT STREQUAL "sentinel" OR

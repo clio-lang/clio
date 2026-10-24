@@ -1,5 +1,7 @@
 #include "NativeLayout.h"
 #include "NativeStack.h"
+#include "NativeFastABI.h"
+#include "NativeTailCalls.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
@@ -12,6 +14,12 @@
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
+#include "llvm/Transforms/Scalar/LoopPassManager.h"
+#include "llvm/Transforms/Scalar/SimpleLoopUnswitch.h"
+#include "llvm/Transforms/Scalar/SimplifyCFG.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/LCSSA.h"
+#include "llvm/Transforms/Utils/LoopSimplify.h"
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -19,6 +27,79 @@
 
 namespace kalandra {
 namespace {
+// Keep cancellation calls outside short, vectorizable counted loops. The inner
+// loop executes at most 256 iterations; the outer loop polls before each chunk.
+bool chunkCheckedLoop(llvm::Loop &loop, llvm::Function &function, llvm::FunctionCallee status,
+                      llvm::Value *invocation, llvm::BasicBlock *failed) {
+  using namespace llvm;
+  if (!loop.getSubLoops().empty() || loop.getNumBlocks() != 2)
+    return false;
+  auto *header = loop.getHeader();
+  auto *preheader = loop.getLoopPreheader();
+  auto *latch = loop.getLoopLatch();
+  auto *branch = dyn_cast<CondBrInst>(header->getTerminator());
+  if (!preheader || !latch || !branch || !loop.contains(branch->getSuccessor(0)) ||
+      loop.contains(branch->getSuccessor(1)))
+    return false;
+  auto *condition = dyn_cast<ICmpInst>(branch->getCondition());
+  if (!condition || (condition->getPredicate() != ICmpInst::ICMP_SLT &&
+                     condition->getPredicate() != ICmpInst::ICMP_ULT))
+    return false;
+  auto *iv = dyn_cast<PHINode>(condition->getOperand(0));
+  auto *bound = condition->getOperand(1);
+  if (!iv || iv->getParent() != header || iv->getNumIncomingValues() != 2 ||
+      !iv->getType()->isIntegerTy(64) || !loop.isLoopInvariant(bound))
+    return false;
+  for (auto &phi : header->phis())
+    if (&phi != iv)
+      return false;
+  auto *start = dyn_cast<ConstantInt>(iv->getIncomingValueForBlock(preheader));
+  auto *step = dyn_cast<BinaryOperator>(iv->getIncomingValueForBlock(latch));
+  if (!start || !start->isZero() || !step || step->getOpcode() != Instruction::Add ||
+      step->getOperand(0) != iv || !isa<ConstantInt>(step->getOperand(1)) ||
+      !cast<ConstantInt>(step->getOperand(1))->isOne())
+    return false;
+  // Re-entering the header at a chunk boundary must not duplicate observable
+  // accesses. Irregular/calling loops retain their original polling scheme.
+  for (auto &instruction : *header)
+    if (instruction.mayReadOrWriteMemory())
+      return false;
+  for (auto *block : loop.blocks())
+    for (auto &instruction : *block) {
+      if (isa<CallBase>(instruction))
+        return false;
+      if (auto *load = dyn_cast<LoadInst>(&instruction); load && !load->isSimple())
+        return false;
+      if (auto *store = dyn_cast<StoreInst>(&instruction); store && !store->isSimple())
+        return false;
+    }
+  auto &context = function.getContext();
+  auto *exit = branch->getSuccessor(1);
+  auto *chunks = BasicBlock::Create(context, "loop.chunks", &function, header);
+  auto *complete = BasicBlock::Create(context, "loop.chunk.complete", &function, exit);
+  IRBuilder<> outer(chunks);
+  auto *first = outer.CreatePHI(iv->getType(), 2, "chunk.start");
+  first->addIncoming(start, preheader);
+  auto *remaining = outer.CreateSub(bound, first);
+  auto *small =
+      outer.CreateICmp(condition->getPredicate(), remaining, ConstantInt::get(iv->getType(), 256));
+  auto *length = outer.CreateSelect(small, remaining, ConstantInt::get(iv->getType(), 256));
+  auto *end = outer.CreateAdd(first, length, "chunk.end");
+  auto *code = outer.CreateCall(status, {invocation});
+  outer.CreateCondBr(outer.CreateICmpNE(code, ConstantInt::get(code->getType(), 0)), failed,
+                     header);
+  preheader->getTerminator()->replaceSuccessorWith(header, chunks);
+  iv->setIncomingBlock(iv->getBasicBlockIndex(preheader), chunks);
+  iv->setIncomingValueForBlock(chunks, first);
+  condition->setOperand(1, end);
+  branch->setSuccessor(1, complete);
+  IRBuilder<> next(complete);
+  next.CreateCondBr(next.CreateICmp(condition->getPredicate(), end, bound), chunks, exit);
+  first->addIncoming(end, complete);
+  for (auto &phi : exit->phis())
+    phi.replaceIncomingBlockWith(header, complete);
+  return true;
+}
 void simplifyCheckedStackIR(llvm::Function &function) {
   using namespace llvm;
   // Simplify only after checked allocation/fault/poll calls are installed, so
@@ -38,6 +119,42 @@ void simplifyCheckedStackIR(llvm::Function &function) {
   simplify.addPass(EarlyCSEPass());
   simplify.addPass(DCEPass());
   simplify.run(function, functionAnalyses);
+}
+void versionCheckedTailLoop(llvm::Function &function) {
+  using namespace llvm;
+  // Try standard loop versioning on a private clone. A larger function can
+  // decline it without changing source acceptance or weakening stack budgets.
+  ValueToValueMapTy values;
+  auto *candidate = CloneFunction(&function, values);
+  LoopAnalysisManager loopAnalyses;
+  FunctionAnalysisManager functionAnalyses;
+  CGSCCAnalysisManager callAnalyses;
+  ModuleAnalysisManager moduleAnalyses;
+  PassBuilder passes;
+  passes.registerLoopAnalyses(loopAnalyses);
+  passes.registerFunctionAnalyses(functionAnalyses);
+  passes.registerCGSCCAnalyses(callAnalyses);
+  passes.registerModuleAnalyses(moduleAnalyses);
+  passes.crossRegisterProxies(loopAnalyses, functionAnalyses, callAnalyses, moduleAnalyses);
+  FunctionPassManager optimize;
+  optimize.addPass(LoopSimplifyPass());
+  optimize.addPass(LCSSAPass());
+  optimize.addPass(createFunctionToLoopPassAdaptor(SimpleLoopUnswitchPass(true)));
+  optimize.addPass(SimplifyCFGPass());
+  optimize.addPass(InstCombinePass());
+  optimize.addPass(DCEPass());
+  optimize.run(*candidate, functionAnalyses);
+  functionAnalyses.clear(*candidate, candidate->getName());
+  if (!nativeStackBudgetError(*candidate, DataLayout(nativeCpuDataLayout))) {
+    const auto linkage = function.getLinkage();
+    function.deleteBody();
+    function.copyAttributesFrom(candidate);
+    function.setLinkage(linkage);
+    for (auto &argument : candidate->args())
+      argument.replaceAllUsesWith(function.getArg(argument.getArgNo()));
+    function.splice(function.begin(), candidate);
+  }
+  candidate->eraseFromParent();
 }
 } // namespace
 // Apply after bufferization/LLVM translation, so allocations and clones
@@ -63,6 +180,31 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
     if (!function.isDeclaration())
       originals.push_back(&function);
   std::unordered_map<Function *, Function *> checked;
+  SmallPtrSet<CallInst *, 16> scalarTails;
+  SmallPtrSet<Function *, 16> pureScalarBodies;
+  std::unordered_map<Function *, std::vector<CallInst *>> checkedTails;
+  for (auto *function : originals)
+    for (auto &block : *function)
+      for (auto &instruction : block)
+        if (auto *call = dyn_cast<CallInst>(&instruction); call && scalarTailReturn(*call))
+          scalarTails.insert(call);
+  for (auto *function : originals) {
+    bool pure = true;
+    for (auto &block : *function)
+      for (auto &instruction : block) {
+        if (auto *call = dyn_cast<CallInst>(&instruction)) {
+          auto *callee = call->getCalledFunction();
+          if (scalarTails.contains(call) || (callee && callee->getName() == "kalandra_fault"))
+            continue;
+          if (!callee || !callee->isIntrinsic() || call->mayHaveSideEffects() ||
+              call->mayReadOrWriteMemory())
+            pure = false;
+        } else if (instruction.mayReadOrWriteMemory() || isa<AllocaInst>(instruction))
+          pure = false;
+      }
+    if (pure)
+      pureScalarBodies.insert(function);
+  }
   for (auto *old : originals) {
     auto name = old->getName().str();
     old->setName(name + ".unchecked");
@@ -78,6 +220,8 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
       argument.replaceAllUsesWith(function->getArg(argument.getArgNo()));
     function->getArg(function->arg_size() - 1)->setName("invocation");
     checked.emplace(old, function);
+    if (pureScalarBodies.contains(old))
+      pureScalarBodies.insert(function);
   }
   for (auto *old : originals) {
     auto *function = checked.at(old);
@@ -162,6 +306,8 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
         return "external call has no checked invocation convention: " + target->getName().str();
       auto *replacement = builder.CreateCall(callee, arguments);
       replacement->setCallingConv(call->getCallingConv());
+      if (scalarTails.contains(call))
+        checkedTails[function].push_back(replacement);
       call->replaceAllUsesWith(replacement);
       call->eraseFromParent();
       auto *block = replacement->getParent();
@@ -191,6 +337,8 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
       pending.insert(pending.end(), loop->begin(), loop->end());
     }
     for (auto *loop : headers) {
+      if (chunkCheckedLoop(*loop, *function, status, invocation, failed))
+        continue;
       auto *header = loop->getHeader();
       IRBuilder<> counter(header, header->getFirstInsertionPt());
       auto *tick = counter.CreatePHI(i64, pred_size(header), "poll.tick");
@@ -210,7 +358,6 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
       auto *code = poll.CreateCall(status, {invocation});
       poll.CreateCondBr(poll.CreateICmpNE(code, ConstantInt::get(i64, 0)), failed, body);
     }
-
   }
   // Source function references must point at the checked entry, including references
   // passed through arguments, returned values and branch-selected pointers.
@@ -235,6 +382,16 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
     if (auto error =
             nativeStackBudgetError(*function, llvm::DataLayout(nativeCpuDataLayout), numericLeaf))
       return error;
+    auto &tails = checkedTails[function];
+    // Decline the optimization for large signatures/control flow. Its bounded
+    // PHI/unwind state fits in this reserved headroom; ordinary source admission
+    // remains unchanged when the function does not qualify.
+    unsigned returnCount = 0;
+    for (auto &block : *function)
+      returnCount += isa<ReturnInst>(block.getTerminator());
+    if (tails.size() > 4 || function->arg_size() > 9 || returnCount > 8 ||
+        nativeStackBudgetError(*function, llvm::DataLayout(nativeCpuDataLayout), false, 8192))
+      tails.clear();
     // Balance every admitted return, including fault/cancellation exits. The
     // rejected-entry block below never acquired a call slot and must not leave.
     for (auto &block : *function)
@@ -256,6 +413,14 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
     auto *admitted =
         builder.CreateCall(enter, {invocation, ConstantInt::get(i64, 0), ConstantInt::get(i64, 0)});
     builder.CreateCondBr(admitted, start, denied);
+    lowerCheckedTailCalls(*function, tails, enter, leave, status, pureScalarBodies.contains(function));
+    // The transformed loop/unwind state must also fit the unchanged budget.
+    if (!tails.empty())
+      if (auto error =
+              nativeStackBudgetError(*function, llvm::DataLayout(nativeCpuDataLayout), numericLeaf))
+        return error;
+    if (!tails.empty() && pureScalarBodies.contains(function))
+      versionCheckedTailLoop(*function);
   }
   for (const auto *name : {"kalandra_fault",
                            "_mlir_memref_to_llvm_alloc",
@@ -290,6 +455,7 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
                            "kalandra_string_slice"})
     if (auto *old = module.getFunction(name); old && old->use_empty())
       old->eraseFromParent();
+  defineNativeFastABI(module);
   return std::nullopt;
 }
 } // namespace kalandra

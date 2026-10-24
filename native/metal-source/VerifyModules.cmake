@@ -5,7 +5,7 @@ file(READ "${ROOT}/main.k" MAIN)
 file(READ "${ROOT}/kernels/arithmetic.k" LIBRARY)
 
 function(compile_source NAME)
-  execute_process(COMMAND "${COMPILER}" ${ARGN} -o "${OUTPUT_DIR}/${NAME}"
+  execute_process(COMMAND "${COMPILER}" --arithmetic software ${ARGN} -o "${OUTPUT_DIR}/${NAME}"
     WORKING_DIRECTORY "${OUTPUT_DIR}"
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
@@ -137,7 +137,7 @@ endif()
 function(reject NAME PATTERN)
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${COMPILER}" ${ARGN} -o "${OUTPUT_DIR}/${NAME}"
+  execute_process(COMMAND "${COMPILER}" --arithmetic software ${ARGN} -o "${OUTPUT_DIR}/${NAME}"
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "${PATTERN}")
     message(FATAL_ERROR "${NAME}: missing ${PATTERN}: ${STATUS} ${OUT} ${ERROR}")
@@ -175,7 +175,7 @@ foreach(NAME IN ITEMS host.cpp cpu.ll placement.ir continuation.plan manifest.tx
     message(FATAL_ERROR "Cannot create source protection hard link: ${LINK_STATUS}")
   endif()
   file(SHA256 "${ROOT}/kernels/arithmetic.k" BEFORE)
-  execute_process(COMMAND "${COMPILER}" "${ROOT}/main.k" -o "${DEST}" --build
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${ROOT}/main.k" -o "${DEST}" --build
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   file(SHA256 "${ROOT}/kernels/arithmetic.k" AFTER)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "source and output" OR NOT BEFORE STREQUAL AFTER)
@@ -186,7 +186,7 @@ endforeach()
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/symlink")
 file(REMOVE "${OUTPUT_DIR}/symlink/host.cpp")
 file(CREATE_LINK "${ROOT}/kernels/arithmetic.k" "${OUTPUT_DIR}/symlink/host.cpp" SYMBOLIC)
-execute_process(COMMAND "${COMPILER}" "${ROOT}/main.k" -o "${OUTPUT_DIR}/symlink"
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${ROOT}/main.k" -o "${OUTPUT_DIR}/symlink"
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "(source and output|symlink output)")
   message(FATAL_ERROR "Symlink source alias admitted: ${ERROR}")
@@ -198,7 +198,7 @@ file(MAKE_DIRECTORY "${OUTPUT_DIR}/manifest-alias")
 file(REMOVE "${OUTPUT_DIR}/manifest-alias/manifest.txt")
 file(CREATE_LINK "${ROOT}/project.toml" "${OUTPUT_DIR}/manifest-alias/manifest.txt")
 file(SHA256 "${ROOT}/project.toml" BEFORE)
-execute_process(COMMAND "${COMPILER}" --project "${ROOT}/project.toml" -o "${OUTPUT_DIR}/manifest-alias"
+execute_process(COMMAND "${COMPILER}" --arithmetic software --project "${ROOT}/project.toml" -o "${OUTPUT_DIR}/manifest-alias"
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(SHA256 "${ROOT}/project.toml" AFTER)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "source and output" OR NOT BEFORE STREQUAL AFTER)

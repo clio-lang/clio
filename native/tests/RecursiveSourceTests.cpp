@@ -7,8 +7,9 @@
 #include <stdexcept>
 namespace kalandra {
 // Private component path: source worker admission stays gated.
-std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &,
-                                                          std::optional<std::string>);
+std::expected<BackendOutput, std::string>
+lowerTaskNative(const TypedModule &, std::optional<std::string>,
+                ArithmeticMode = ArithmeticMode::Hardware);
 } // namespace kalandra
 using namespace kalandra;
 static const std::string prefix = "enum List:\n  Nil\n  Cons:\n    head:int\n    tail:List\n";

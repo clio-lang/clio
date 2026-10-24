@@ -11,7 +11,7 @@ foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
   else()
     set(FLAG --thread-sanitize)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/indirect-arguments.k" --target metal
+  execute_process(COMMAND "${COMPILER}" --arithmetic software "${SOURCE_DIR}/indirect-arguments.k" --target metal
     -o "${OUTPUT_DIR}/${VARIANT}" "${FLAG}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${VARIANT}: ${OUT} ${ERROR}")
@@ -67,7 +67,7 @@ string(REPLACE "dm, dm, 1) on gpu" "dm, dn, 1) on gpu" BAD "${BAD}")
 file(WRITE "${OUTPUT_DIR}/bad.k" "${BAD}")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/bad")
 file(WRITE "${OUTPUT_DIR}/bad/host.cpp" "sentinel")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/bad.k" --target metal
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/bad.k" --target metal
   -o "${OUTPUT_DIR}/bad" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/bad/host.cpp" SENTINEL)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "S033" OR NOT SENTINEL STREQUAL "sentinel")
@@ -76,7 +76,7 @@ endif()
 set(FORWARD "fn forward(values: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:\n  values\n\n")
 string(REPLACE "transfer(n, gpu)" "transfer(forward(n), gpu)" BAD "${BAD}")
 file(WRITE "${OUTPUT_DIR}/dynamic.k" "${FORWARD}${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.k" --target metal
+execute_process(COMMAND "${COMPILER}" --arithmetic software "${OUTPUT_DIR}/dynamic.k" --target metal
   -o "${OUTPUT_DIR}/dynamic" --sanitize RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Last input dynamic shape did not compile: ${ERROR}")

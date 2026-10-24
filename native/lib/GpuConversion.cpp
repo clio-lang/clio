@@ -1,4 +1,5 @@
 #include "kalandra/GpuConversion.h"
+#include "kalandra/HardwareConversion.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 namespace kalandra {
 namespace {
@@ -115,10 +116,33 @@ public:
   }
 };
 } // namespace
-std::pair<mlir::Value, mlir::Value> gpuNumericConversion(mlir::OpBuilder &builder,
-                                                         mlir::Location loc, mlir::Value input,
-                                                         NumericType source,
-                                                         NumericType destination) {
-  return Converter(builder, loc).run(input, source, destination);
+std::pair<mlir::Value, mlir::Value>
+gpuNumericConversion(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value input,
+                     NumericType source, NumericType destination, ArithmeticMode arithmetic) {
+  auto result = Converter(builder, loc).run(input, source, destination);
+  if (arithmetic == ArithmeticMode::Software || source == destination ||
+      source == NumericType::Float64 || destination == NumericType::Float64 ||
+      (isInteger(source) && isInteger(destination)))
+    return result;
+  const auto src = describeNumeric(source), dst = describeNumeric(destination);
+  mlir::Value decoded = input;
+  if (src->bits < 64)
+    decoded =
+        mlir::arith::TruncIOp::create(builder, loc, builder.getIntegerType(src->bits), decoded);
+  if (!isInteger(source))
+    decoded = mlir::arith::BitcastOp::create(builder, loc, builder.getF32Type(), decoded);
+  auto converted = hardwareConversion(builder, loc, decoded, source, destination, result.second);
+  if (!isInteger(destination))
+    converted = mlir::arith::BitcastOp::create(builder, loc, builder.getI32Type(), converted);
+  if (dst->bits < 64) {
+    converted = mlir::arith::ExtUIOp::create(builder, loc, builder.getI64Type(), converted);
+    // SPIR-V can widen narrow scalar integers to 32 bits. Preserve the
+    // canonical packed carrier even when the widened conversion sign-extends.
+    auto mask =
+        mlir::arith::ConstantIntOp::create(builder, loc, (std::uint64_t(1) << dst->bits) - 1, 64);
+    converted = mlir::arith::AndIOp::create(builder, loc, converted, mask);
+  }
+  result.first = converted;
+  return result;
 }
 } // namespace kalandra
