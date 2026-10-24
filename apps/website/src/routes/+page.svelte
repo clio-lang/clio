@@ -1,1206 +1,1413 @@
 <script lang="ts">
-  import { onDestroy, tick, untrack } from "svelte";
-  import { reveal } from "$lib/actions/reveal";
-  import CodeEditor from "$lib/components/CodeEditor.svelte";
-  import ComputeBackground from "$lib/components/ComputeBackground.svelte";
-  import { goto } from "$app/navigation";
-  import {
-    startPlayground,
-    type PlaygroundEvent,
-  } from "$lib/playground/client";
+  import { onDestroy } from "svelte";
   import type { PageData } from "./$types";
   let { data }: { data: PageData } = $props();
-  let selected = $state(1);
-  let drafts = $state(
-    untrack(() => data.examples.map((example) => example.source)),
-  );
-  let editing = $state(false);
-  let busy = $state(false);
-  let status = $state("Ready to run");
-  let output = $state<string[]>([]);
-  let diagnostics = $state<
-    Extract<PlaygroundEvent, { kind: "diagnostics" }>["diagnostics"]
-  >([]);
-  let lastRun = $state<string>();
-  let execution: ReturnType<typeof startPlayground> | undefined;
-  let generation = 0;
+  const repo = "https://github.com/kalandra-lang/kalandra";
+  const docs = "/docs";
+  let selected = $state(0);
+  let copied = $state(false);
+  let copyError = $state(false);
+  let menuOpen = $state(false);
+  let timer: ReturnType<typeof setTimeout>;
   const example = $derived(data.examples[selected]);
-  const changed = $derived(drafts[selected] !== example.source);
-  function clear() {
-    generation++;
-    execution?.stop();
-    busy = false;
-    output = [];
-    diagnostics = [];
-    lastRun = undefined;
-    status = "Ready to run";
+  function tokens(line: string) {
+    return line
+      .split(
+        /(\b(?:fn|try|parallel|spawn|on|await|float32|Tensor|TaskError|matmul|transfer|tensor|reduceSum)\b|\b\d+\b|->)/g,
+      )
+      .map((text) => ({
+        text,
+        kind: /^(fn|try|parallel|spawn|on|await)$/.test(text)
+          ? "keyword"
+          : /^(float32|Tensor|TaskError)$/.test(text)
+            ? "type"
+            : /^(matmul|transfer|tensor|reduceSum)$/.test(text)
+              ? "function"
+              : /^(\d+|->)$/.test(text)
+                ? "value"
+                : "",
+      }));
   }
-  let workbench: HTMLDivElement;
-  let workbenchSpace: HTMLDivElement;
-  let tabAnimation: Animation | undefined;
-  let tabChange = 0;
-  async function select(index: number) {
-    const change = ++tabChange;
-    const opacity = getComputedStyle(workbench).opacity;
-    tabAnimation?.cancel();
-    if (index === selected) return;
-    const motion = !matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // Reserve the panel's space before changing its contents. The remote example
-    // is shorter; collapsing it used to move the hero and the page mid-fade.
-    workbenchSpace.style.minHeight = `${Math.max(workbenchSpace.getBoundingClientRect().height, workbench.getBoundingClientRect().height)}px`;
-    if (motion) {
-      tabAnimation = workbench.animate([{ opacity }, { opacity: 0 }], {
-        duration: 160,
-        easing: "ease-in-out",
-        fill: "forwards",
-      });
-      try {
-        await tabAnimation.finished;
-      } catch {
-        return;
-      }
-    }
-    if (change !== tabChange) return;
-    clear();
-    selected = index;
-    editing = drafts[index] !== data.examples[index].source;
-    await tick();
-    if (change !== tabChange) return;
-    workbenchSpace.style.minHeight = `${Math.max(workbenchSpace.getBoundingClientRect().height, workbench.getBoundingClientRect().height)}px`;
-    tabAnimation?.cancel();
-    if (motion)
-      tabAnimation = workbench.animate([{ opacity: 0 }, { opacity: 1 }], {
-        duration: 300,
-        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-      });
-  }
-  function reset() {
-    clear();
-    drafts[selected] = example.source;
-    editing = false;
-  }
-  function run() {
-    if (busy || selected === 0) return;
-    clear();
-    const id = generation;
-    lastRun = drafts[selected];
-    busy = true;
-    execution = startPlayground(drafts[selected], (event) => {
-      if (id !== generation) return;
-      if (event.kind === "diagnostics") diagnostics = event.diagnostics;
-      else if (event.kind === "output") output = [...output, event.text];
-      else if (event.kind === "loading") status = "Loading compiler…";
-      else if (event.kind === "compiling") status = "Compiling…";
-      else if (event.kind === "running") status = "Running…";
-      else {
-        busy = false;
-        if (event.kind === "result" || event.kind === "error")
-          output = [...output, event.text];
-        status =
-          event.kind === "result"
-            ? "Finished"
-            : event.kind === "invalid"
-              ? "Check your source"
-              : event.kind === "stopped"
-                ? "Stopped"
-                : "Failed";
-      }
-    });
-  }
-  function openPlayground() {
+  async function copy() {
+    clearTimeout(timer);
     try {
-      sessionStorage.setItem("kalandra-home-source", drafts[selected]);
-      void goto("/docs/playground?from=home");
+      await navigator.clipboard.writeText(example.source);
+      copied = true;
+      copyError = false;
     } catch {
-      status =
-        "Browser storage is unavailable. Copy your code before opening the playground.";
+      copied = false;
+      copyError = true;
     }
+    timer = setTimeout(() => {
+      copied = false;
+      copyError = false;
+    }, 2500);
   }
-  onDestroy(() => {
-    tabChange++;
-    tabAnimation?.cancel();
-    generation++;
-    execution?.stop();
-  });
+  function select(index: number) {
+    selected = index;
+    copied = false;
+    copyError = false;
+    clearTimeout(timer);
+  }
+  onDestroy(() => clearTimeout(timer));
 </script>
 
+{#snippet arrow(external = false)}
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+    >{#if external}<path d="M6 18 18 6M6 6h12v12" />{:else}<path
+        d="M4 12h15m-6-6 6 6-6 6"
+      />{/if}</svg
+  >
+{/snippet}
+
 <svelte:head>
-  <title>Kalandra — Parallel and distributed programming</title>
+  <title>Kalandra — Native CPU and GPU programming</title>
   <meta
     name="description"
-    content="A functional language for parallel and distributed computing. Run typed functions in workers, make remote calls, and compile to JavaScript."
+    content="Kalandra is a native programming language for CPU and GPU computing. Compose typed functions, work with tensors, and place numerical tasks on Apple Metal."
   />
   <link rel="canonical" href="https://kalandra.dev/" />
-  <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Kalandra" />
+  <meta property="og:type" content="website" /><meta
+    property="og:site_name"
+    content="Kalandra"
+  />
   <meta
     property="og:title"
-    content="Kalandra — Parallel and distributed by design"
+    content="Kalandra — Native CPU and GPU programming"
   />
   <meta
     property="og:description"
-    content="A functional language and framework for parallel and distributed applications. Run functions in workers, call remote services, and compile to JavaScript."
+    content="A shared language for typed CPU workers, resident GPU graphs, and numerical computing."
   />
-  <meta property="og:url" content="https://kalandra.dev/" />
-  <meta
+  <meta property="og:url" content="https://kalandra.dev/" /><meta
     property="og:image"
-    content="https://kalandra.dev/social/kalandra.png"
+    content="https://kalandra.dev/social/native.png"
   />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:image:type" content="image/png" />
-  <meta
+  <meta property="og:image:width" content="1200" /><meta
+    property="og:image:height"
+    content="630"
+  /><meta
     property="og:image:alt"
-    content="Kalandra. Functions here. Compute anywhere. A language and framework for parallel and distributed applications."
+    content="Kalandra. A native language for CPU and GPU computing."
   />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta
-    name="twitter:title"
-    content="Kalandra — Parallel and distributed by design"
-  />
-  <meta
-    name="twitter:description"
-    content="A language and framework for parallel and distributed applications. The next chapter of Clio."
-  />
-  <meta
-    name="twitter:image"
-    content="https://kalandra.dev/social/kalandra.png"
-  />
-  <meta
-    name="twitter:image:alt"
-    content="Kalandra. Functions here. Compute anywhere."
+  <meta name="twitter:card" content="summary_large_image" /><meta
+    name="theme-color"
+    content="#000000"
   />
 </svelte:head>
 
-<div class="landing">
+<div class="language-site">
   <a class="skip" href="#main">Skip to content</a>
-  <header class="shell">
-    <a class="wordmark" href="/" aria-label="Kalandra home">kalandra.</a>
-    <nav aria-label="Main navigation">
-      <a href="/docs">Documentation</a><a href="/docs/playground">Playground</a
-      ><a href="/docs/blog">Blog</a><a
-        href="https://github.com/kalandra-lang/kalandra">GitHub ↗</a
+  <header>
+    <div class="nav-shell">
+      <a class="brand" href="/" aria-label="Kalandra home"
+        ><span class="brand-mark" aria-hidden="true"></span>Kalandra</a
+      ><button
+        class="menu"
+        aria-expanded={menuOpen}
+        aria-controls="main-nav"
+        onclick={() => (menuOpen = !menuOpen)}
+        >{menuOpen ? "Close" : "Menu"}<svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          aria-hidden="true"
+          >{#if menuOpen}<path d="m6 6 12 12M6 18 18 6" />{:else}<path
+              d="M4 8h16M4 16h16"
+            />{/if}</svg
+        ></button
       >
-    </nav>
+      <nav id="main-nav" class:open={menuOpen} aria-label="Main navigation">
+        <a href="/docs">Documentation</a><a href="/docs/gpu">GPU computing</a><a
+          href={`${repo}/blob/native/docs/roadmap.md`}>Roadmap</a
+        ><a href={repo}>GitHub {@render arrow(true)}</a><a
+          class="nav-start"
+          href="/docs/getting-started">Get started</a
+        >
+      </nav>
+    </div>
   </header>
   <main id="main">
-    <section
-      class="hero shell"
-      aria-label="Kalandra introduction and live example"
-    >
-      <ComputeBackground />
-      <div class="intro">
-        <p class="eyebrow">FUNCTIONAL · PARALLEL · DISTRIBUTED</p>
-        <h1>Parallel and distributed<br />by design.</h1>
-        <p class="description">
-          Kalandra is a functional language for parallel and distributed
-          computing. Run functions in workers, call remote services, and compose
-          the results with pipelines—all from a language that compiles to
-          JavaScript.
-        </p>
-        <div class="actions">
-          <a
-            class="site-control site-control-primary"
-            href="/docs/getting-started"
-            >Get started <span aria-hidden="true">→</span></a
-          ><a class="site-control" href="/docs/guide">Read the language guide</a
-          >
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-art" aria-hidden="true"></div>
+      <div class="hero-content shell">
+        <div class="hero-copy">
+          <h1 id="hero-title">One language.<br /><span>CPU and GPU.</span></h1>
+          <p class="hero-description">
+            Kalandra brings typed functions, structured parallelism and explicit
+            GPU placement into a single native language.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary hero-start" href="/docs/getting-started"
+              >Get started {@render arrow()}</a
+            ><a class="hero-guide" href="/docs/gpu"
+              >Explore GPU computing {@render arrow()}</a
+            >
+          </div>
+          <p class="preview-note">
+            Open source. Native development preview. <a
+              href={`${repo}/blob/native/docs/roadmap.md`}
+              >Follow development {@render arrow(true)}</a
+            >
+          </p>
         </div>
       </div>
-      <div class="demo" aria-label="Try Kalandra">
-        <div class="tabs" role="group" aria-label="Choose an example">
-          {#each [1, 0, 2] as i}<button
+    </section>
+
+    <section class="examples shell" aria-labelledby="examples-title">
+      <div class="example-intro">
+        <h2 id="examples-title">Functions in.<br /> GPU graphs out.</h2>
+        <p aria-live="polite">{example.description}</p>
+        <a href={`${repo}/blob/native/${example.path}`}
+          >View complete source {@render arrow(true)}</a
+        >
+      </div>
+      <div class="code-example" id="examples">
+        <div
+          class="example-tabs"
+          role="group"
+          aria-label="Native language examples"
+        >
+          {#each data.examples as item, i}<button
               class:active={selected === i}
               aria-pressed={selected === i}
-              onclick={() => select(i)}
-              >{["Remote calls", "Parallel calls", "Type checks"][i]}</button
+              onclick={() => select(i)}>{item.title}</button
             >{/each}
         </div>
-        <div bind:this={workbenchSpace}>
-          <div class="workbench" bind:this={workbench}>
-            <div class="filebar">
-              <span>main.kalandra{changed ? " · edited" : ""}</span>
-              {#if selected !== 0}<div>
-                  <button
-                    class="site-control"
-                    onclick={() => (editing = !editing)}
-                    disabled={busy || changed}
-                    >{editing ? "View code" : "Edit code"}</button
-                  ><button class="site-control" onclick={reset}>Reset</button>
-                </div>{/if}
-            </div>
-            {#if editing}
-              <CodeEditor
-                bind:value={drafts[selected]}
-                disabled={busy}
-                compact
-                onrun={run}
-              />
-            {:else}
-              <pre
-                class="source"
-                class:remote-preview={selected === 0}
-                aria-label="Kalandra source"><code>{@html example.html}</code
-                ></pre>
-            {/if}
-            <div class="demo-caption">
-              <p>{example.description}</p>
-              {#if selected === 1}<p>
-                  <code>|double|</code> dispatches each call to a worker.
-                  <code>[await]</code> collects their results.
-                </p>{:else}<p>{example.detail}</p>{/if}
-            </div>
-            {#if selected === 1 && !changed}
-              <div
-                class="dispatch"
-                aria-label="Illustration of three independent calls, not a live worker monitor"
-              >
-                <span class="dispatch-label">THREE INDEPENDENT CALLS</span>
-                <div class="dispatch-calls">
-                  {#each [1, 2, 3] as value}<div>
-                      <code>double {value}</code><span aria-hidden="true"
-                        >→</span
-                      ><code>{value * 2}</code>
-                    </div>{/each}
-                </div>
-              </div>
-            {/if}
-            {#if selected === 0}
-              <div class="runbar">
-                <a class="site-control site-control-primary" href={example.link}
-                  >Run with a service →</a
-                ><span>Experimental</span>
-              </div>
-            {:else}
-              <div class="runbar">
-                <button
-                  class="site-control site-control-primary"
-                  onclick={run}
-                  disabled={busy}
-                  >Run example <span aria-hidden="true">▷</span></button
-                >{#if busy}<button
-                    class="site-control"
-                    onclick={() => execution?.stop()}>Stop</button
-                  >{/if}<span role="status">{status}</span>
-              </div>
-            {/if}
-            <div class="result" aria-live="polite">
-              {#if lastRun === undefined}<span class="result-label"
-                  >{selected === 0
-                    ? "EXPECTED WITH THE GUIDE’S CALIBRATION SERVICE"
-                    : "EXPECTED"}</span
-                ><code>{example.expected}</code>
-              {:else}<span class="result-label"
-                  >{lastRun !== drafts[selected]
-                    ? "PREVIOUS RUN · SOURCE HAS CHANGED"
-                    : "OUTPUT"}</span
-                >{#each diagnostics as diagnostic}<p class="diagnostic">
-                    <strong>{diagnostic.code}</strong>
-                    {diagnostic.message}
-                  </p>{/each}{#each output as line}<pre>{line}</pre>{/each}{#if busy && !output.length && !diagnostics.length}<span
-                    >Working…</span
-                  >{/if}{/if}
-            </div>
-            <div class="editor-footer">
-              {#if selected === 0}<span
-                  >Requires a running Bun service, client contract, and endpoint
-                  bindings.</span
-                >{:else}<span>Runs in your browser · 10 second limit</span
-                ><button onclick={openPlayground}>Open in playground ↗</button
-                >{/if}
-            </div>
+        <div class="filebar">
+          <span>{example.file}</span><button
+            onclick={copy}
+            aria-label="Copy source"
+            >{copied
+              ? "Copied"
+              : copyError
+                ? "Select source to copy"
+                : "Copy"}</button
+          ><span class="sr-only" role="status"
+            >{copied
+              ? "Source copied to clipboard."
+              : copyError
+                ? "Clipboard unavailable. Select and copy the source manually."
+                : ""}</span
+          >
+        </div>
+        <!-- Keyboard focus allows scrolling long native examples. -->
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+        <div
+          class="source"
+          role="region"
+          tabindex="0"
+          aria-label={`${example.title} source code`}
+        >
+          <pre><code
+              >{#each example.source.split("\n") as line, i}<span
+                  class="code-line"
+                  ><span class="line-number" aria-hidden="true">{i + 1}</span
+                  ><span class="line-content"
+                    >{#each tokens(line) as token}<span class={token.kind}
+                        >{token.text}</span
+                      >{/each}{"\n"}</span
+                  ></span
+                >{/each}</code
+            ></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="overview shell" aria-labelledby="overview-title">
+      <h2 id="overview-title">One language. The whole machine.</h2>
+      <p class="section-intro">
+        Express the computation as functions. Make execution and data movement
+        explicit.
+      </p>
+      <div class="principles">
+        <article>
+          <h3>Compose functions.</h3>
+          <p>
+            Build numerical graphs from typed functions, tensor arithmetic,
+            matrix products and reductions. Intermediate results can remain on
+            the GPU.
+          </p>
+          <a href="/docs/gpu">Explore GPU operations {@render arrow()}</a>
+        </article>
+        <article>
+          <h3>Place the work.</h3>
+          <p>
+            Dispatch CPU workers or place a numerical task on the GPU. Transfer
+            tensors explicitly, await results, and keep task lifetimes within
+            parallel scopes.
+          </p>
+          <a href={`${repo}/blob/native/native/README.md`}
+            >Read the execution model {@render arrow()}</a
+          >
+        </article>
+        <article>
+          <h3>Build native programs.</h3>
+          <p>
+            Compile to native applications with a source checker, formatter,
+            language server and VS Code extension supporting your development
+            workflow.
+          </p>
+          <a href="/docs/getting-started"
+            >Set up the toolchain {@render arrow()}</a
+          >
+        </article>
+      </div>
+    </section>
+
+    <section class="numerics section-line" id="ai">
+      <div class="shell numerical-layout">
+        <div>
+          <h2>Build the foundations<br /> of AI on the GPU.</h2>
+          <p>
+            Matrix products, tensor arithmetic and balanced reductions are
+            building blocks of modern AI and LLM systems. Kalandra makes these
+            operations available in a typed native language, with control over
+            where data lives and computation runs.
+          </p>
+          <p>
+            GPU programs support all ten native numeric types and dense tensor
+            ranks zero through eight. Metal float32 uses hardware arithmetic;
+            float64 requires explicit software fallback. Compose resident
+            numerical and control graphs on Apple Metal, with explicit transfers
+            between host and device.
+          </p>
+          <a class="text-link" href="/docs/gpu"
+            >Read the GPU guide {@render arrow()}</a
+          >
+        </div>
+        <div class="operation-reference">
+          <div>
+            <code>matmul(a, b)</code>
+            <p>Rank-two matrix products, composed into resident graphs.</p>
           </div>
+          <div>
+            <code>reduceSum(values)</code>
+            <p>Balanced sums over typed numerical tensors.</p>
+          </div>
+          <div>
+            <code>transfer(values, device)</code>
+            <p>Explicit data movement between CPU and GPU.</p>
+          </div>
+          <a href={`${repo}/blob/native/docs/design/native-gpu-capabilities.md`}
+            >Supported operations and numerical semantics {@render arrow(
+              true,
+            )}</a
+          >
         </div>
+      </div>
+      <div class="shell scope-note">
+        Apple Metal is the current GPU backend. Model loading, a full LLM
+        inference runtime and CUDA remain outside the current scope.
       </div>
     </section>
-    <aside class="release-announcement shell" aria-label="Latest Kalandra news">
-      <a href="/docs/blog/reviving-clio">Kalandra 0.13.0 development preview</a>
-      <span>is now available to try. Clio is coming back.</span>
-    </aside>
-    <section
-      use:reveal
-      class="chapter shell introduction"
-      aria-labelledby="what-title"
-    >
-      <div class="section-heading">
-        <h2 id="what-title">What is Kalandra?</h2>
-        <p>
-          Kalandra is a functional programming language and a framework for
-          parallel and distributed applications. Write functions, run
-          independent work in parallel, and call services on other machines—with
-          less communication code to assemble yourself.
-        </p>
-      </div>
-      <div class="overview-grid">
-        <div>
-          <h3>A language built around functions</h3>
-          <p>
-            Describe your data with types and records, and compose functions
-            into programs. <strong
-              >Types check the data crossing worker and service boundaries</strong
-            > before you run the code.
-          </p>
-          <a href="/docs/guide">Meet the language →</a>
-        </div>
-        <div>
-          <h3>A framework for distributing work</h3>
-          <p>
-            Send independent calls to workers, or import a remote service and
-            call its functions. <strong
-              >The runtime handles task dispatch and serialization</strong
-            >; you choose where the work belongs.
-          </p>
-          <a href="/docs/guide/parallel">Explore the execution model →</a>
-        </div>
-        <div>
-          <h3>Built on JavaScript</h3>
-          <p>
-            Kalandra <strong>compiles to JavaScript modules</strong> and can use existing
-            JavaScript packages. Try it in the browser playground, or use Bun to build
-            local projects and experimental remote services.
-          </p>
-          <a href="/docs/getting-started">Start a project →</a>
-        </div>
-      </div>
-    </section>
-    <section use:reveal class="chapter shell" aria-labelledby="program-title">
-      <div class="section-heading">
-        <p class="eyebrow">WORKERS AND REMOTE CALLS</p>
-        <h2 id="program-title">
-          Distribute the work. Keep the program in view.
-        </h2>
-        <p>
-          A local worker can call a remote service and collect its results.
-          Here, a batch of sensor readings is sent to a calibration service
-          through a typed client contract.
-        </p>
-      </div>
+
+    <section class="platforms shell" aria-labelledby="platform-title">
+      <h2 id="platform-title">Native development across platforms.</h2>
+      <p class="section-intro">
+        Use the same language and tools for CPU programs, with Apple Metal
+        available on supported Macs.
+      </p>
+      <!-- Keyboard focus allows scrolling the platform table on narrow screens. -->
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
       <div
-        class="execution-path"
-        aria-label="The main program dispatches batch to a local worker, which calls the remote calibration service"
+        tabindex="0"
+        class="platform-table"
+        role="region"
+        aria-label="Supported native platforms"
       >
-        <div><span>Main program</span><code>await |batch| 10</code></div>
-        <span aria-hidden="true">→</span>
-        <div><span>Local worker</span><code>batch</code></div>
-        <span aria-hidden="true">→</span>
-        <div><span>Remote service</span><code>calibrate</code></div>
-      </div>
-      <div class="story-grid">
-        <div class="story-copy">
-          <h3>Two boundaries. Explicit in the source.</h3>
-          <p>
-            <code>|batch|</code> dispatches a function to a local worker. Inside
-            that worker, <code>calibrate</code> makes remote calls because it
-            comes from a <code>remote:</code> import.
-          </p>
-          <p>
-            The client contract supplies the record and function types. The
-            compiler checks the values crossing those boundaries, and <code
-              >[await]</code
-            > collects the results of the mapped calls.
-          </p>
-          <a href="/docs/guide/workflows"
-            >Run the complete remote batch example →</a
+        <table>
+          <thead
+            ><tr
+              ><th scope="col">Platform</th><th scope="col">Execution</th><th
+                scope="col">Current baseline</th
+              ></tr
+            ></thead
+          ><tbody
+            ><tr
+              ><th scope="row">macOS</th><td>CPU and Apple Metal GPU</td><td
+                >macOS 26+, Apple silicon</td
+              ></tr
+            ><tr
+              ><th scope="row">Linux</th><td>CPU</td><td
+                >x86-64, Ubuntu 24.04 / glibc 2.39</td
+              ></tr
+            ><tr
+              ><th scope="row">Windows</th><td>CPU</td><td
+                >x86-64, Windows 11 with C++ build tools</td
+              ></tr
+            ></tbody
           >
-          <p class="small-note">
-            Remote services are experimental. This example requires the Bun
-            service, a generated client contract, and endpoint bindings; it does
-            not run in the browser playground.
+        </table>
+      </div>
+      <a
+        class="text-link"
+        href={`${repo}/blob/native/docs/design/native-releases.md`}
+        >Distribution and toolchain requirements {@render arrow()}</a
+      >
+    </section>
+
+    <section class="onboarding section-line">
+      <div class="shell onboarding-layout">
+        <div>
+          <h2>Start with a native project.</h2>
+          <p>
+            Install the native toolchain, create a project, check its sources,
+            and compile an executable. The starter includes two modules and a
+            typed parallel map.
           </p>
-        </div>
-        <div class="code-sheet">
-          <div class="filebar">remote-batch / client / main.kalandra</div>
-          <pre class="snippet remote-source"><code
-              >{@html data.remoteClient}</code
-            ></pre>
-          <div class="result">
-            <span class="result-label">RESULT · TWO BATCHES</span><code
-              >[12, 22, 12, 22]</code
+          <div class="onboarding-links">
+            <a class="button primary" href="/docs/getting-started"
+              >Installation and setup {@render arrow()}</a
+            ><a
+              class="text-link"
+              href={`${repo}/blob/native/docs/design/native-vscode.md`}
+              >Editor integration {@render arrow(true)}</a
             >
           </div>
         </div>
-      </div>
-    </section>
-
-    <section use:reveal class="chapter shell" aria-labelledby="js-title">
-      <div class="section-heading">
-        <p class="eyebrow">PART OF THE JAVASCRIPT WORLD</p>
-        <h2 id="js-title">A different source language. Familiar output.</h2>
-        <p>
-          Kalandra emits JavaScript modules and source maps. Ordinary functions
-          stay ordinary functions in the generated code.
-        </p>
-      </div>
-      <div class="code-pair">
-        <div class="code-sheet">
-          <div class="filebar">double.kalandra</div>
-          <pre class="snippet compact"><code>{@html data.compiledSource}</code
+        <div class="terminal">
+          <div class="terminal-title">With the native compiler installed</div>
+          <pre><code
+              >kalandra new my-app
+kalandra-check --project my-app/kalandra.toml
+kalandra --project my-app/kalandra.toml \
+  -o my-app/program
+./my-app/program</code
             ></pre>
-        </div>
-        <div class="code-sheet">
-          <div class="filebar">
-            Generated JavaScript · built by this compiler
-          </div>
-          <pre class="snippet compact"><code class="syntax-code"
-              >{@html data.javascript}</code
-            ></pre>
-        </div>
-      </div>
-      <div class="interop-note">
-        <div>
-          <h3>Bring an existing package.</h3>
-          <p>
-            Use explicit <code>esm:</code> or <code>cjs:</code> imports. Packages
-            can provide Kalandra signatures so their functions have known types. This
-            helper is imported by the invoice workflow in the guide:
-          </p>
-          <a href="/docs/guide/modules">Modules and package imports →</a>
-        </div>
-        <div class="code-sheet">
-          <div class="filebar">invoice-math / index.js</div>
-          <pre class="snippet compact"><code class="syntax-code"
-              >{@html data.invoiceJs}</code
-            ></pre>
-        </div>
-      </div>
-    </section>
-
-    <section use:reveal class="chapter shell" aria-labelledby="runtime-title">
-      <div class="section-heading">
-        <p class="eyebrow">CHOOSE WHERE THE WORK RUNS</p>
-        <h2 id="runtime-title">
-          Parallel on your machine. Distributed across services.
-        </h2>
-      </div>
-      <div class="runtime-list">
-        <div>
-          <h3>In the browser</h3>
-          <p>
-            The playground compiles and runs a single file, including typed
-            parallel calls in browser workers. No installation required.
-          </p>
-          <a href="/docs/playground">Try a program →</a>
-          <p class="small-note">
-            Fresh sandbox per run. No package imports or network access.
-          </p>
-        </div>
-        <div>
-          <h3>Locally with Bun</h3>
-          <p>
-            Build multi-file projects, import packages, and run parallel work in
-            a bounded subprocess pool. Nested tasks share the scheduler, with
-            cancellation and deadlines.
-          </p>
-          <a href="/docs/getting-started">Install Kalandra →</a>
-          <p class="small-note">
-            Use project build or run for managed parallel execution.
-          </p>
-        </div>
-        <div>
-          <h3>
-            Across services <span class="preview-label">Experimental</span>
-          </h3>
-          <p>
-            Expose typed tasks through authenticated Bun services. Generated
-            contracts describe what clients can send and receive.
-          </p>
-          <a href="/docs/guide/workflows">Explore the remote batch example →</a>
-          <p class="small-note">
-            Verified on loopback HTTP. Public hosting and TLS need separate
-            setup.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <section use:reveal class="chapter shell" aria-labelledby="tools-title">
-      <div class="story-grid">
-        <div class="story-copy">
-          <p class="eyebrow">WORK ON A PROJECT</p>
-          <h2 id="tools-title">Create. Check. Build. Repeat.</h2>
-          <p>
-            The CLI creates an offline starter with two modules and a typed
-            parallel function. Check source without running it, or rebuild when
-            files change.
-          </p>
-          <p class="muted">
-            The language server provides diagnostics, completion, type hover,
-            definition lookup, references, and rename. Connect it through your
-            editor’s LSP client; editor setup is currently manual.
-          </p>
-          <a href="/docs/development#editor-support">Set up editor support →</a>
-        </div>
-        <div class="code-sheet">
-          <div class="filebar">With the installed Kalandra CLI</div>
-          <pre class="snippet commands"><code class="syntax-code"
-              >{@html data.commands}</code
-            ></pre>
-          <div class="result">
-            <span class="result-label">STARTER RESULT</span><code
-              >[2, 4, 6]</code
-            >
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section use:reveal class="chapter shell" aria-labelledby="learn-title">
-      <div class="section-heading">
-        <p class="eyebrow">LEARN AT YOUR OWN PACE</p>
-        <h2 id="learn-title">Take a closer look.</h2>
-        <p>
-          Short lessons with executable examples, from a first function to a
-          complete project.
-        </p>
-      </div>
-      <div class="lesson-list">
-        {#each data.lessons as lesson}<a href={"/docs/guide/" + lesson[0]}
-            ><h3>{lesson[1]} <span aria-hidden="true">→</span></h3>
-            <p>{lesson[2]}</p>
-            <code>{@html lesson[3]}</code></a
-          >{/each}
-      </div>
-    </section>
-    <section use:reveal id="project" class="project shell">
-      <div>
-        <p class="eyebrow">A FRESH BEGINNING</p>
-        <h2>Clio, continued.</h2>
-      </div>
-      <div>
-        <p>
-          Clio explored parallel and distributed programming. Kalandra brings it
-          back with a rebuilt compiler, tooling, and documentation—and a new
-          name.
-        </p>
-        <p class="muted">
-          This is a development preview. Start with the browser playground, or
-          install the CLI from npm with Bun.
-        </p>
-        <div class="project-links">
-          <a href="/docs/getting-started">Installation →</a><a
-            href="/docs/guide/limits">Current limitations →</a
+          <a href={`${repo}/blob/native/docs/design/native-starter.md`}
+            >Native starter reference {@render arrow(true)}</a
           >
         </div>
+      </div>
+    </section>
+    <section class="open-source shell">
+      <h2>Open source, in development.</h2>
+      <p>
+        Explore the implementation, read the language design, or contribute to
+        the next native milestone.
+      </p>
+      <div>
+        <a href={repo}>Kalandra on GitHub {@render arrow(true)}</a><a
+          href={`${repo}/blob/native/docs/roadmap.md`}
+          >Development roadmap {@render arrow()}</a
+        >
       </div>
     </section>
   </main>
-  <footer class="shell">
-    <a class="wordmark" href="/" aria-label="Kalandra home">kalandra.</a><span
-      >Open source · Apache 2.0</span
-    ><a href="https://github.com/kalandra-lang/kalandra">GitHub ↗</a><a
-      href="/docs">Documentation →</a
-    >
+  <footer>
+    <div class="shell footer-content">
+      <div>
+        <a class="brand" href="/">Kalandra</a>
+        <p>A native language for CPU and GPU computing.</p>
+      </div>
+      <nav aria-label="Footer navigation">
+        <a href="/docs">Documentation</a><a href="/docs/gpu">GPU guide</a><a
+          href={repo}>GitHub</a
+        ><a href={`${repo}/blob/native/LICENSE`}>Apache 2.0</a>
+      </nav>
+    </div>
   </footer>
 </div>
 
 <style>
-  .landing {
-    color: var(--foreground);
-    background: var(--background);
+  .language-site {
+    --bg: #000;
+    --panel: #0d0d10;
+    --text: #ededf0;
+    --muted: #a5a5af;
+    --line: #26262d;
+    --accent: #c5b1ff;
+    background: var(--bg);
+    color: var(--text);
+    font-family:
+      "Geist Variable", sans-serif; /* impeccable-disable-line overused-font -- User selected Kotlin as the primary visual reference; neutral sans language-site typography. */
     min-height: 100vh;
+    overflow: clip;
+  }
+  .language-site ::selection {
+    background: #244b80;
+    color: #fff;
   }
   .shell {
-    width: min(1120px, calc(100% - 64px));
+    width: min(1200px, calc(100% - 96px));
     margin-inline: auto;
-  }
-  header {
-    height: 96px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-  }
-  .wordmark {
-    font-size: 26px;
-    font-weight: 650;
-    letter-spacing: -1.2px;
-    text-decoration: none;
-  }
-  nav,
-  .actions,
-  .project-links {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-  }
-  nav {
-    font-size: 14px;
   }
   a {
     color: inherit;
-    text-underline-offset: 5px;
-  }
-  a.site-control-primary {
-    color: var(--primary-foreground);
-  }
-  nav a {
     text-decoration: none;
   }
-  nav a:hover {
-    text-decoration: underline;
+  button {
+    font: inherit;
   }
-  .release-announcement {
-    box-sizing: border-box;
-    border-radius: var(--radius);
+  a:focus-visible,
+  button:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 5px;
+  }
+  .skip {
+    position: fixed;
+    top: -100px;
+    left: 20px;
+    background: #fff;
+    color: #000;
+    padding: 12px;
+    z-index: 50;
+  }
+  .skip:focus {
+    top: 10px;
+  }
+  header {
+    border-bottom: 1px solid var(--line);
+    background: #161617;
+  }
+  .nav-shell {
+    width: min(1200px, calc(100% - 64px));
+    margin-inline: auto;
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 4px 7px;
-    padding: 20px 24px;
-    text-align: center;
-    background: var(--muted);
-    border-block: 1px solid var(--border);
-    font-size: 15px;
-    line-height: 1.6;
+    justify-content: space-between;
+    align-items: center;
+    height: 68px;
+    gap: 30px;
   }
-  .release-announcement a {
-    font-weight: 600;
-    text-decoration: underline;
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 24px;
+    font-weight: 550;
+    letter-spacing: -0.025em;
+  }
+  .brand-mark {
+    display: block;
+    width: 36px;
+    height: 25px;
+    background: #e8e8ed;
+    mask: url("/brand/kalandra-mark.svg") center/contain no-repeat;
+  }
+  nav {
+    display: flex;
+    gap: 26px;
+    align-items: center;
+    font-size: 14px;
+    color: #d0cfd4;
+  }
+  nav > a {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  nav > a:hover {
+    color: #fff;
+  }
+  .nav-start {
+    background: #7c55e8;
+    padding: 10px 20px;
+    border-radius: 28px;
+    color: #fff;
+  }
+  .nav-start:hover {
+    background: #916df2;
+  }
+  .menu {
+    display: none;
   }
   .hero {
     position: relative;
     isolation: isolate;
-    display: grid;
-    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.25fr);
-    gap: 44px;
-    align-items: center;
-    padding-block: 56px 64px;
+    min-height: 610px;
   }
-  .intro {
-    min-width: 0;
+  .hero-art {
+    position: absolute;
+    inset: 0 0 -260px;
+    z-index: -1;
+    background: url("/art/native-hero.webp") center top / cover no-repeat;
+    pointer-events: none;
+    mask-image: linear-gradient(#000 75%, transparent);
   }
-  .demo {
-    min-width: 0;
+  .hero-content {
+    padding-top: 90px;
+    padding-bottom: 90px;
   }
-  .source.remote-preview {
-    height: auto;
-    min-height: 218px;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
+  .hero-copy {
+    max-width: 740px;
   }
-  .demo-caption {
-    padding: 0 20px 16px;
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--muted-foreground);
+  .hero h1 {
+    font-size: clamp(64px, 7.3vw, 96px);
+    font-weight: 500;
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+    margin: 0 0 30px;
   }
-  .demo-caption p {
-    margin: 0 0 6px;
+  .hero h1 > span {
+    color: #c6b2ff;
   }
-  .demo-caption code {
-    color: var(--foreground);
+  .hero-description {
+    font-size: 19px;
+    line-height: 1.7;
+    color: #d0ced9;
+    max-width: 490px;
+    margin: 0 0 32px;
   }
-  .dispatch {
-    margin: 0 20px 18px;
-    padding: 12px 0;
-    border-block: 1px solid var(--border);
-  }
-  .dispatch-label {
-    display: block;
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    color: var(--muted-foreground);
-    margin-bottom: 10px;
-  }
-  .dispatch-calls {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-  }
-  .dispatch-calls > div {
+  .hero-actions {
     display: flex;
-    justify-content: space-between;
-    gap: 6px;
-    font-size: 12px;
-  }
-  .dispatch-calls > div + div {
-    border-left: 1px solid var(--border);
-    padding-left: 10px;
-  }
-
-  .eyebrow {
-    font-size: 11px;
-    letter-spacing: 0.14em;
-    font-weight: 650;
-    color: var(--muted-foreground);
-    margin: 0 0 20px;
-  }
-  h1 {
-    font-size: clamp(38px, 4vw, 52px);
-    font-weight: 550;
-    letter-spacing: -0.045em;
-    line-height: 1.08;
-    margin: 0;
-  }
-  .description {
-    max-width: 670px;
-    font-size: 17px;
-    line-height: 1.65;
-    color: var(--muted-foreground);
-    margin: 26px 0;
-  }
-  .actions {
-    gap: 12px;
+    align-items: center;
+    gap: 28px;
     flex-wrap: wrap;
   }
-  .tabs {
-    display: flex;
-    border-bottom: 1px solid var(--border);
-    gap: 24px;
+  .hero .hero-start {
+    font-size: 17px;
+    padding: 14px 25px;
+    gap: 30px;
   }
-  .tabs button {
-    border: 0;
-    border-bottom: 2px solid transparent;
-    background: none;
-    color: var(--muted-foreground);
-    padding: 16px 0;
-    font: inherit;
+  .hero-guide {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     font-size: 14px;
-    cursor: pointer;
+    color: #ddd3fa;
   }
-  .tabs button.active {
-    color: var(--foreground);
-    border-bottom-color: var(--foreground);
+  .hero-guide:hover {
+    text-decoration: underline;
+    text-underline-offset: 5px;
   }
-  h2 {
-    font-size: 30px;
-    line-height: 1.2;
-    font-weight: 550;
-    letter-spacing: -0.03em;
-    margin: 0 0 20px;
+  .examples {
+    position: relative;
+    padding-block: 40px 70px;
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    align-items: start;
+    gap: 60px;
   }
-  .project p:not(.eyebrow) {
-    font-size: 16px;
-    line-height: 1.7;
+  .example-intro > a {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    color: var(--accent);
+    margin-top: 24px;
   }
-  .muted {
-    color: var(--muted-foreground);
+  .example-intro > a:hover {
+    text-decoration: underline;
+    text-underline-offset: 5px;
   }
-  .project-links {
+  .example-intro {
+    margin: 0 0 30px;
+  }
+  .example-intro h2 {
+    font-size: 38px;
+    margin: 0 0 12px;
+  }
+  .example-intro > p {
+    color: #b8b5c3;
+    font-size: 17px;
+    margin: 0;
+  }
+  .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 12px 18px;
+    border: 1px solid transparent;
+    border-radius: 30px;
     font-size: 14px;
+    font-weight: 500;
+    transition:
+      background 0.16s,
+      border-color 0.16s;
   }
-  .workbench {
-    box-sizing: border-box;
-    background: var(--background);
-    min-width: 0;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+  .primary {
+    background: #7b4fed;
+    color: #fff;
+    border-color: #7b4fed;
+  }
+  .primary:hover {
+    background: #9067f7;
+  }
+  .secondary {
+    background: #111114;
+    border-color: #363640;
+    color: #dddde4;
+  }
+  .secondary:hover {
+    background: #1b1b21;
+    border-color: #5a5a66;
+  }
+  .code-example {
+    max-width: none;
+    margin: 0;
+    border: 1px solid #2a2732;
+    border-radius: 12px;
+    background: #0b0b0e;
     overflow: hidden;
   }
-  .filebar {
+  .example-tabs {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px;
-    background: var(--muted);
-    border-bottom: 1px solid var(--border);
-    font: 12px var(--font-mono);
+    gap: 30px;
+    padding-inline: 28px;
+    background: #111114;
+    border-bottom: 1px solid var(--line);
   }
-  .filebar div {
-    display: flex;
-    gap: 6px;
-  }
-  .filebar button {
-    font-size: 12px;
-    padding: 4px 8px;
-  }
-  .source {
-    box-sizing: border-box;
-    display: block;
-    width: 100%;
-    height: 218px;
-    overflow: auto;
-    margin: 0;
-    padding: 24px;
-    font: 500 15px/1.85 var(--font-mono);
-    tab-size: 2;
-    background: var(--background);
-    color: var(--foreground);
-    border: 0;
-    white-space: pre;
-  }
-  .runbar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 16px 16px;
-  }
-  .runbar span {
-    font-size: 12px;
-    color: var(--muted-foreground);
-  }
-  .result {
-    padding: 18px 24px;
-    border-top: 1px solid var(--border);
-    background: var(--muted);
-    min-height: 90px;
-    overflow-wrap: anywhere;
-  }
-  .result-label {
-    display: block;
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    color: var(--muted-foreground);
-    margin-bottom: 10px;
-  }
-  .result code,
-  .result pre {
-    font: 14px/1.6 var(--font-mono);
-    margin: 0;
-    white-space: pre-wrap;
-  }
-  .diagnostic {
-    font-size: 13px;
-    line-height: 1.6;
-    margin: 0 0 10px;
-  }
-  .editor-footer {
-    padding: 12px 16px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    justify-content: space-between;
-    font-size: 11px;
-    color: var(--muted-foreground);
-  }
-  .editor-footer button {
-    border: 0;
+  .example-tabs > button {
     background: none;
-    color: var(--foreground);
-    padding: 0;
-    font: inherit;
-    text-decoration: underline;
-    text-underline-offset: 3px;
+    color: #a9a9b6;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 16px 0;
+    font-size: 13px;
     cursor: pointer;
   }
-  .project {
-    padding-block: 48px 64px;
-    border-top: 1px solid var(--border);
-    display: grid;
-    grid-template-columns: 0.85fr 1.5fr;
-    gap: 56px;
+  .example-tabs > button.active {
+    border-bottom-color: var(--accent);
+    color: #f1f1f4;
   }
-  .project p {
-    margin-top: 0;
+  .example-tabs > button:hover {
+    color: #fff;
   }
-  .project-links {
-    margin-top: 24px;
-    flex-wrap: wrap;
-  }
-  footer {
-    border-top: 1px solid var(--border);
-    padding-block: 28px;
+  .filebar {
+    padding: 17px 24px 8px;
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    gap: 20px;
-    font-size: 12px;
-    color: var(--muted-foreground);
+    align-items: center;
+    color: #9999a8;
+    font: 11px var(--font-mono);
   }
-  footer .wordmark {
-    font-size: 20px;
-  }
-  button:disabled {
-    opacity: 0.55;
-    cursor: default;
-  }
-  button:focus-visible,
-  a:focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 3px;
-  }
-  .skip {
-    position: absolute;
-    top: -100px;
-    padding: 12px;
-    background: var(--background);
-  }
-  .skip:focus {
-    top: 0;
-  }
-  .execution-path {
+  .filebar > button {
     display: flex;
     align-items: center;
-    gap: 24px;
-    padding: 24px 0;
-    margin-bottom: 32px;
-    border-block: 1px solid var(--border);
+    gap: 7px;
+    min-height: 30px;
+    background: none;
+    border: 0;
+    padding: 3px 0 3px 10px;
+    color: #bdbdc8;
+    font:
+      12px "Geist Variable",
+      sans-serif;
+    cursor: pointer;
   }
-  .execution-path div {
-    flex: 1;
-    display: grid;
-    gap: 8px;
+  .filebar > button:hover {
+    color: #fff;
   }
-  .execution-path div span {
-    font-size: 13px;
-    color: var(--muted-foreground);
+  .source {
+    min-height: 230px;
+    max-height: 360px;
+    overflow: auto;
+    scrollbar-color: #50505f #0b0b0e;
   }
-  .execution-path code {
-    font-size: 14px;
+  .source pre {
+    margin: 0;
+    padding: 7px 24px 24px;
+    font: 13px/1.9 var(--font-mono);
+    color: #dadbe4;
+    white-space: pre-wrap;
   }
-  .remote-source {
+  .code-line {
+    display: flex;
+  }
+  .line-number {
+    flex: none;
+    width: 31px;
+    color: #747482;
+    font-size: 10px;
+    user-select: none;
+  }
+  .line-content {
+    min-width: 0;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
-  @media (max-width: 520px) {
-    .execution-path {
-      gap: 10px;
-    }
-    .execution-path code {
-      font-size: 11px;
-    }
-    .execution-path div span {
-      font-size: 11px;
-    }
+  .keyword {
+    color: #a2bfff;
   }
-  .chapter {
-    padding-block: 56px;
-    border-top: 1px solid var(--border);
+  .type {
+    color: #c5afe8;
   }
-  .introduction > .section-heading {
-    margin-inline: auto;
-    text-align: center;
-    margin-bottom: 40px;
+  .function {
+    color: #e5cfaa;
   }
-  .overview-grid {
+  .value {
+    color: #e8ad99;
+  }
+  .preview-note {
+    font-size: 11px;
+    line-height: 1.9;
+    color: #9696a5;
+    margin: 24px 0 0;
+  }
+  .preview-note > a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent);
+  }
+  .preview-note > a:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  h2 {
+    font-size: 44px;
+    line-height: 1.16;
+    font-weight: 500;
+    letter-spacing: -0.025em;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: 21px;
+    line-height: 1.3;
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    margin: 0 0 13px;
+  }
+  .section-intro {
+    font-size: 16px;
+    line-height: 1.75;
+    color: var(--muted);
+    margin: 0;
+    max-width: 750px;
+  }
+  .overview {
+    padding-block: 60px 75px;
+  }
+  .overview > h2 {
+    font-size: 44px;
+    line-height: 1.15;
+  }
+  .overview > h2,
+  .overview > .section-intro {
+    text-align: left;
+    margin-inline: 0;
+  }
+  .principles {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 36px;
+    gap: 44px;
+    margin-top: 45px;
   }
-  .overview-grid > div {
+  .principles article {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
   }
-  .overview-grid p {
-    font-size: 16px;
-    line-height: 1.7;
-    color: var(--muted-foreground);
+  .principles p {
+    font-size: 14px;
+    line-height: 1.85;
+    color: var(--muted);
+    margin: 0 0 20px;
     flex: 1;
   }
-  .overview-grid strong {
-    color: var(--foreground);
-    font-weight: 600;
-  }
-  .overview-grid a {
-    font-size: 14px;
-  }
-  @media (max-width: 800px) {
-    .overview-grid {
-      grid-template-columns: 1fr;
-      gap: 28px;
-    }
-    .introduction > .section-heading {
-      text-align: left;
-    }
-  }
-  .section-heading {
-    max-width: 760px;
-    margin-bottom: 32px;
-  }
-  .section-heading p:not(.eyebrow),
-  .story-copy p,
-  .interop-note p,
-  .runtime-list p {
-    font-size: 16px;
-    line-height: 1.7;
-  }
-  .section-heading p:not(.eyebrow) {
-    color: var(--muted-foreground);
-  }
-  .story-grid {
-    display: grid;
-    grid-template-columns: 0.85fr 1.5fr;
-    gap: 56px;
-    align-items: start;
-  }
-  h3 {
-    font-size: 19px;
-    font-weight: 550;
-    letter-spacing: -0.02em;
-    margin: 0 0 14px;
-  }
-  .story-copy p {
-    margin: 0 0 20px;
-  }
-  .story-copy a,
-  .interop-note a,
-  .runtime-list a {
-    font-size: 14px;
-  }
-  .code-sheet {
-    min-width: 0;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-  .snippet {
-    margin: 0;
-    padding: 24px;
-    overflow: auto;
-    font: 500 14px/1.85 var(--font-mono);
-    background: var(--background);
-  }
-  .story-copy .small-note,
-  .runtime-list .small-note {
-    font-size: 12px;
-    line-height: 1.65;
-    color: var(--muted-foreground);
-    margin-top: 20px;
-  }
-  .code-pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
-  .compact {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-  .interop-note {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 40px;
+  .principles a,
+  .text-link {
+    display: inline-flex;
     align-items: center;
-    margin-top: 36px;
+    gap: 7px;
+    font-size: 13px;
+    color: var(--accent);
   }
-  .runtime-list {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 32px;
-  }
-  .runtime-list > div {
-    border-top: 1px solid var(--border);
-    padding-top: 24px;
-  }
-  .preview-label {
-    display: block;
-    font-size: 11px;
-    font-weight: 400;
-    color: var(--muted-foreground);
-    letter-spacing: 0;
-    margin-top: 8px;
-  }
-  .lesson-list {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 32px;
-  }
-  .lesson-list a {
-    text-decoration: none;
-    border-top: 1px solid var(--border);
-    padding-top: 22px;
-    min-width: 0;
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .lesson-list a,
-    .site-control {
-      transition:
-        color 160ms ease,
-        background-color 160ms ease,
-        transform 160ms ease;
-    }
-    .lesson-list a:hover,
-    .site-control:hover {
-      transform: translateY(-2px);
-    }
-    .lesson-list h3 span {
-      transition: transform 160ms ease;
-    }
-    .lesson-list a:hover h3 span {
-      transform: translateX(3px);
-    }
-  }
-  .lesson-list a:hover h3 {
+  .principles a:hover,
+  .text-link:hover {
     text-decoration: underline;
     text-underline-offset: 5px;
   }
-  .lesson-list h3 {
-    display: flex;
-    justify-content: space-between;
+  .section-line {
+    border-block: 1px solid var(--line);
+    background: #08080a;
   }
-  .lesson-list p {
+  .numerics {
+    padding-block: 70px 35px;
+  }
+  .numerical-layout {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 90px;
+    align-items: start;
+  }
+  .numerical-layout > div > p {
+    font-size: 15px;
+    line-height: 1.85;
+    color: var(--muted);
+    margin: 0 0 19px;
+  }
+  .operation-reference {
+    padding-top: 4px;
+  }
+  .operation-reference > div {
+    padding: 0 0 22px;
+    margin-bottom: 22px;
+    border-bottom: 1px solid #2b2b32;
+  }
+  .operation-reference code {
     font-size: 14px;
-    line-height: 1.6;
-    color: var(--muted-foreground);
+    color: #c1d3ee;
   }
-  .lesson-list code {
+  .operation-reference p {
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 10px 0 0;
+    color: #aaaab4;
+  }
+  .operation-reference > a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-size: 12px;
-    overflow-wrap: anywhere;
+    color: var(--accent);
   }
-  @media (max-width: 800px) {
-    .story-grid,
-    .code-pair,
-    .interop-note {
-      grid-template-columns: 1fr;
-      gap: 24px;
+  .operation-reference > a:hover {
+    text-decoration: underline;
+    text-underline-offset: 5px;
+  }
+  .scope-note {
+    border-top: 1px solid #232329;
+    margin-top: 42px;
+    padding-top: 20px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #90909f;
+  }
+  .platforms {
+    padding-block: 70px;
+  }
+  .platform-table {
+    margin: 30px 0 24px;
+    overflow: auto;
+    scrollbar-color: #50505f #000;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  th,
+  td {
+    padding: 17px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  thead th {
+    font-weight: 500;
+    background: #101013;
+    color: #c2c2cd;
+  }
+  tbody th {
+    font-weight: 500;
+    color: #e2e2e8;
+  }
+  td {
+    color: #a5a5b2;
+  }
+  th:first-child,
+  td:first-child {
+    padding-left: 20px;
+  }
+  .onboarding {
+    padding-block: 65px;
+  }
+  .onboarding-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    gap: 80px;
+    align-items: center;
+  }
+  .onboarding p {
+    font-size: 15px;
+    line-height: 1.85;
+    color: var(--muted);
+    max-width: 470px;
+    margin: 0 0 25px;
+  }
+  .onboarding-links {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    flex-wrap: wrap;
+  }
+  .onboarding .button {
+    font-size: 13px;
+    padding: 11px 15px;
+  }
+  .terminal {
+    background: #101013;
+    border: 1px solid #2c2c35;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .terminal-title {
+    font-size: 12px;
+    color: #adadba;
+    padding: 17px 20px;
+    border-bottom: 1px solid #27272e;
+  }
+  .terminal pre {
+    margin: 0;
+    padding: 21px 20px;
+    font: 11px/2.15 var(--font-mono);
+    overflow: auto;
+    color: #d2d4df;
+    scrollbar-color: #50505f #101013;
+  }
+  .terminal > a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    font-size: 12px;
+    color: var(--accent);
+    padding: 16px 20px;
+    border-top: 1px solid #27272e;
+  }
+  .terminal > a:hover {
+    color: #c8daff;
+  }
+  .open-source {
+    text-align: center;
+    padding-block: 65px;
+  }
+  .open-source h2 {
+    font-size: 30px;
+  }
+  .open-source > p {
+    font-size: 15px;
+    line-height: 1.8;
+    color: var(--muted);
+    margin: 0 auto 25px;
+    max-width: 660px;
+  }
+  .open-source > div {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    flex-wrap: wrap;
+  }
+  .open-source > div > a {
+    display: inline-flex;
+    gap: 7px;
+    align-items: center;
+    font-size: 14px;
+    color: var(--accent);
+  }
+  .open-source a:hover {
+    text-decoration: underline;
+    text-underline-offset: 5px;
+  }
+  footer {
+    border-top: 1px solid var(--line);
+    background: #080809;
+  }
+  .footer-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
+    padding-block: 35px;
+  }
+  .footer-content .brand {
+    font-size: 21px;
+  }
+  .footer-content p {
+    font-size: 12px;
+    color: #858592;
+    margin: 11px 0 0;
+  }
+  .footer-content nav {
+    gap: 24px;
+    font-size: 12px;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-copy {
+      animation: enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
     }
-    .runtime-list,
-    .lesson-list {
-      grid-template-columns: 1fr 1fr;
+
+    @keyframes enter {
+      from {
+        transform: translateY(8px);
+      }
+      to {
+        transform: translateY(0);
+      }
+    }
+    .code-example {
+      transition: border-color 0.18s;
+    }
+    .code-example:focus-within {
+      border-color: #57749e;
     }
   }
-  @media (max-width: 520px) {
-    .chapter {
-      padding-block: 36px;
-    }
-    .runtime-list,
-    .lesson-list {
-      grid-template-columns: 1fr;
-    }
-    .snippet {
-      padding: 18px 14px;
-      font-size: 12px;
+  @media (prefers-reduced-motion: reduce) {
+    .language-site * {
+      animation: none !important;
+      transition: none !important;
     }
   }
-  @media (max-width: 800px) {
-    .project {
-      grid-template-columns: 1fr;
-      gap: 24px;
+  @media (max-width: 1000px) {
+    .examples {
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 30px;
     }
-    .hero {
-      grid-template-columns: 1fr;
-      gap: 32px;
-      padding-block: 36px 48px;
-    }
-  }
-  @media (max-width: 520px) {
     .shell {
-      width: calc(100% - 32px);
+      width: calc(100% - 64px);
     }
-    header {
-      height: 76px;
+    .nav-shell {
+      width: calc(100% - 48px);
     }
     nav {
-      gap: 16px;
+      gap: 20px;
       font-size: 12px;
     }
-    nav a:last-child {
+    .hero {
+      min-height: 580px;
+    }
+    .hero-content {
+      padding-top: 75px;
+      padding-bottom: 75px;
+    }
+    .hero h1 {
+      font-size: clamp(66px, 9vw, 90px);
+    }
+    .hero-description {
+      font-size: 15px;
+    }
+    .principles {
+      gap: 30px;
+    }
+    .numerical-layout {
+      gap: 50px;
+    }
+    .onboarding-layout {
+      gap: 40px;
+    }
+    .terminal pre {
+      font-size: 10px;
+    }
+  }
+  @media (max-width: 760px) {
+    .shell {
+      width: calc(100% - 40px);
+    }
+    .nav-shell {
+      width: calc(100% - 40px);
+      height: 68px;
+    }
+    .brand {
+      font-size: 22px;
+    }
+    header nav {
+      gap: 18px;
+    }
+    header nav > a:nth-child(3) {
       display: none;
     }
-    .wordmark {
-      font-size: 24px;
+    .hero {
+      min-height: 0;
     }
-    .description {
-      font-size: 17px;
+    .hero-content {
+      padding-top: 58px;
+      padding-bottom: 65px;
     }
-    .tabs {
-      gap: 0;
-      justify-content: space-between;
+    .hero h1 {
+      font-size: clamp(47px, 9.2vw, 68px);
+      margin-bottom: 25px;
     }
-    .tabs button {
+    .hero-description {
+      font-size: 15px;
+      max-width: 450px;
+    }
+    .hero-art {
+      inset: 0 -220px -100px 0;
+      background-position: 35% top;
+      opacity: 0.55;
+    }
+    .hero .hero-start {
+      font-size: 16px;
+    }
+    .examples {
+      grid-template-columns: 1fr;
+      gap: 28px;
+      padding-top: 25px;
+      padding-bottom: 40px;
+    }
+    .example-intro {
+      margin: 0;
+    }
+    .example-intro p {
+      max-width: 540px;
+    }
+    .example-intro h2 {
+      font-size: 32px;
+    }
+    .example-intro h2 br {
+      display: none;
+    }
+    .example-intro > p {
+      font-size: 15px;
+    }
+    .overview > h2 {
+      font-size: 34px;
+    }
+    .desktop-break {
+      display: none;
+    }
+    .button {
+      font-size: 13px;
+      padding: 12px 15px;
+    }
+    .code-example {
+      margin-top: 22px;
+    }
+    .example-tabs {
+      padding-inline: 20px;
+      gap: 26px;
+    }
+    .example-tabs > button {
       font-size: 12px;
     }
+    .filebar {
+      padding-inline: 20px;
+    }
     .source {
-      padding: 18px 14px;
+      min-height: 240px;
+    }
+    .source pre {
+      padding-inline: 20px;
+      font-size: 11px;
+    }
+    .overview {
+      padding-block: 40px 55px;
+    }
+    h2 {
+      font-size: 29px;
+    }
+    .section-intro {
+      font-size: 15px;
+    }
+    .principles {
+      grid-template-columns: 1fr;
+      gap: 30px;
+      margin-top: 32px;
+    }
+    .principles article {
+      display: block;
+    }
+    .principles h3 {
+      font-size: 21px;
+    }
+    .principles p {
+      font-size: 14px;
+      margin-bottom: 13px;
+      max-width: 620px;
+    }
+    .numerics {
+      padding-block: 50px 28px;
+    }
+    .numerical-layout {
+      grid-template-columns: 1fr;
+      gap: 35px;
+    }
+    .numerical-layout > div > p {
+      font-size: 14px;
+    }
+    .numerical-layout h2 > br {
+      display: none;
+    }
+    .operation-reference {
+      max-width: 100%;
+      padding: 0;
+    }
+    .scope-note {
+      margin-top: 30px;
+      font-size: 11px;
+    }
+    .platforms {
+      padding-block: 50px;
+    }
+    .platform-table {
+      margin-top: 25px;
+    }
+    table {
+      font-size: 12px;
+      min-width: 570px;
+    }
+    th,
+    td {
+      padding: 15px;
+    }
+    .onboarding {
+      padding-block: 50px;
+    }
+    .onboarding-layout {
+      grid-template-columns: 1fr;
+      gap: 30px;
+    }
+    .onboarding p {
+      font-size: 14px;
+      max-width: 600px;
+    }
+    .terminal pre {
+      font-size: 11px;
+    }
+    .open-source {
+      padding-block: 50px;
+    }
+    .open-source h2 {
+      font-size: 28px;
+    }
+    .open-source > p {
+      font-size: 14px;
+    }
+    .open-source > div {
+      gap: 20px;
+    }
+    .open-source > div > a {
       font-size: 13px;
-      height: 220px;
     }
-    .actions {
-      flex-wrap: wrap;
+    .footer-content {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 25px;
     }
-    footer {
+    .footer-content nav {
       flex-wrap: wrap;
+      gap: 23px;
+    }
+  }
+  @media (max-width: 520px) {
+    header {
+      position: relative;
+      z-index: 10;
+    }
+    .menu {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      border: 1px solid #383842;
+      border-radius: 5px;
+      padding: 9px 11px;
+      background: none;
+      color: #d2d2dc;
+      font-size: 12px;
+    }
+    header nav {
+      display: none;
+    }
+    header nav.open {
+      display: flex;
+      position: absolute;
+      top: 67px;
+      left: 0;
+      right: 0;
+      align-items: stretch;
+      flex-direction: column;
+      gap: 0;
+      padding: 10px 20px 18px;
+      background: #0b0b0e;
+      border-bottom: 1px solid #373740;
+    }
+    header nav.open > a,
+    header nav.open > a:nth-child(3) {
+      display: flex;
+      padding: 13px 0;
+      font-size: 14px;
+    }
+    header nav.open > .nav-start {
+      justify-content: center;
+      padding: 12px;
+      margin-top: 8px;
+    }
+    .hero h1 {
+      font-size: clamp(40px, 10.5vw, 54px);
+      margin-bottom: 24px;
+    }
+    .hero-description {
+      font-size: 15px;
+      line-height: 1.7;
+      margin-bottom: 25px;
+    }
+
+    .example-tabs {
+      gap: 19px;
+      padding-inline: 16px;
+    }
+    .example-tabs > button {
+      font-size: 11px;
+      padding-block: 15px;
+    }
+    .filebar {
+      padding: 13px 16px 6px;
+    }
+    .source pre {
+      padding: 5px 16px 22px;
+      font-size: 11px;
+    }
+    .line-number {
+      width: 25px;
+    }
+    .source {
+      min-height: 230px;
+      max-height: 330px;
+    }
+    .preview-note {
+      font-size: 11px;
+      line-height: 1.7;
+    }
+    .hero-description,
+    .section-intro,
+    .numerical-layout > div > p {
+      text-wrap: pretty;
+    }
+    .overview > h2,
+    .overview > .section-intro {
+      text-align: left;
+    }
+    .terminal pre {
+      font-size: 9px;
+    }
+    .operation-reference code {
+      font-size: 12px;
+    }
+    .operation-reference p {
+      font-size: 12px;
+    }
+    .onboarding-links {
+      gap: 18px;
+    }
+    .onboarding-links .text-link {
+      font-size: 12px;
+    }
+    .open-source > div {
+      align-items: center;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .footer-content p {
+      font-size: 11px;
+    }
+    .footer-content nav {
+      font-size: 11px;
+      gap: 18px;
     }
   }
 </style>

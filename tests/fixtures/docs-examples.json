@@ -1,0 +1,196 @@
+{
+  "arrays": [
+    {
+      "kind": "cpu",
+      "expected": "23"
+    },
+    {
+      "kind": "cpu",
+      "expected": "[2, 4, 6]"
+    },
+    {
+      "kind": "cpu",
+      "expected": "[1, 2, 9]"
+    }
+  ],
+  "control-flow": [
+    {
+      "kind": "cpu",
+      "expected": "42"
+    },
+    {
+      "kind": "cpu",
+      "expected": "42"
+    }
+  ],
+  "errors": [
+    {
+      "kind": "cpu",
+      "expected": "1"
+    },
+    {
+      "kind": "cpu",
+      "expected": "42"
+    }
+  ],
+  "functions": [
+    {
+      "kind": "cpu",
+      "expected": "42"
+    },
+    {
+      "kind": "cpu",
+      "expected": "42"
+    },
+    {
+      "kind": "cpu",
+      "expected": "120"
+    }
+  ],
+  "getting-started": [
+    {
+      "kind": "module",
+      "expected": "[2, 4, 6]"
+    },
+    {
+      "kind": "module",
+      "expected": null
+    }
+  ],
+  "gpu-numerics": [
+    {
+      "kind": "gpu",
+      "expected": "[42d40000,431c0000,43710000,43b10000]"
+    }
+  ],
+  "gpu": [
+    {
+      "kind": "gpu",
+      "expected": "41b80000"
+    }
+  ],
+  "index": [
+    {
+      "kind": "cpu",
+      "expected": "42"
+    }
+  ],
+  "installation": [],
+  "modules": [
+    {
+      "kind": "module",
+      "expected": null
+    },
+    {
+      "kind": "module",
+      "expected": "42"
+    }
+  ],
+  "numbers": [
+    {
+      "kind": "cpu",
+      "expected": "42"
+    },
+    {
+      "kind": "cpu",
+      "expected": "42"
+    }
+  ],
+  "packages": [
+    {
+      "kind": "workflow",
+      "expected": null
+    },
+    {
+      "kind": "workflow",
+      "expected": "42"
+    }
+  ],
+  "parallelism": [
+    {
+      "kind": "cpu",
+      "expected": "42"
+    },
+    {
+      "kind": "cpu",
+      "expected": "[2, 4, 6]"
+    }
+  ],
+  "projects": [
+    {
+      "kind": "workflow",
+      "expected": "42"
+    },
+    {
+      "kind": "workflow",
+      "expected": null
+    },
+    {
+      "kind": "workflow",
+      "expected": "42"
+    }
+  ],
+  "records-enums": [
+    {
+      "kind": "cpu",
+      "expected": "17"
+    },
+    {
+      "kind": "cpu",
+      "expected": "42"
+    }
+  ],
+  "strings": [
+    {
+      "kind": "cpu",
+      "expected": "Hello, Kalandra"
+    },
+    {
+      "kind": "cpu",
+      "expected": "12"
+    },
+    {
+      "kind": "cpu",
+      "expected": "Kala"
+    }
+  ],
+  "syntax": [
+    {
+      "kind": "cpu",
+      "expected": "42"
+    },
+    {
+      "kind": "cpu",
+      "expected": "42"
+    },
+    {
+      "kind": "cpu",
+      "expected": "42"
+    }
+  ],
+  "tensors": [
+    {
+      "kind": "cpu",
+      "expected": "20"
+    },
+    {
+      "kind": "cpu",
+      "expected": "3"
+    },
+    {
+      "kind": "cpu",
+      "expected": "23"
+    }
+  ],
+  "tooling": [],
+  "troubleshooting": [
+    {
+      "kind": "reject",
+      "expected": null
+    },
+    {
+      "kind": "cpu",
+      "expected": "42"
+    }
+  ]
+}

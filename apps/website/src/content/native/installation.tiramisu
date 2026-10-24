@@ -1,0 +1,51 @@
+meta { title = "Installation", description = "Choose a native package and prepare your platform.", order = 2, group = "Start here" }
+
+Choose the mixed CPU/Metal toolchain for a supported Mac when you need GPU execution. It also compiles ordinary CPU programs. Linux and Windows currently use native CPU packages. An editor-only package provides checking, formatting and the language server, rather than application compilation.
+
+h2 { "Supported platforms" }
+
+h3 { "macOS" }
+
+Use macOS 26 or newer on Apple silicon. Native compilation requires the Apple SDK and system linker. Metal builds additionally require the pinned Apple Metal Toolchain component; the driver validates its signature and version. The current pinned Metal compiler version is 32023.864.
+
+h3 { "Linux" }
+
+Use x86-64 Linux with the qualified Ubuntu 24.04 / glibc 2.39 baseline. Standalone archives include private compiler dependencies while retaining their declared system-runtime requirements.
+
+h3 { "Windows" }
+
+Use Windows 11 x86-64 with Microsoft C++ Build Tools and the Windows SDK. Native CPU execution is qualified. ThreadSanitizer is not supported on Windows; the compiler rejects that mode explicitly.
+
+h2 { "Install a native package" }
+
+Native release and qualification workflows produce the platform packages. Use the mixed macOS distribution, or the matching native CPU archive on Linux and Windows. Check the supplied SHA-256 sidecar before extracting. Keep the complete extracted toolchain directory together: its bin, lib and share resources are required.
+
+link { url = "https://github.com/kalandra-lang/kalandra/actions", "Native qualification and release workflows" }
+
+link { url = "https://github.com/kalandra-lang/kalandra/blob/native/docs/design/native-releases.md", "Native release and artifact reference" }
+
+Add the package bin directory to PATH. For example, if the complete package is at $HOME/kalandra, a POSIX shell can use:
+
+codeblock { language = bash, """export PATH="$HOME/kalandra/bin:$PATH"
+""" }
+
+Use a permanent directory and add the equivalent path through your shell or Windows environment settings. Moving only the compiler executable loses its private resources. Standalone packages bundle the private LLVM toolchain; external-toolchain packages retain the requirements listed in their metadata.
+
+h2 { "Build from source" }
+
+From a native-branch checkout, install CMake 3.28 or newer, Ninja, toml++ 3.4.0 and the pinned LLVM/MLIR/Clang 23.1.3 toolchain. Then use the native presets:
+
+codeblock { language = bash, """cmake --preset native
+cmake --build --preset native
+ctest --preset native
+""" }
+
+The build-tree tools are under build/native/native. Metal configuration has additional opt-in dependencies and Apple toolchain requirements; follow the source guide rather than substituting an arbitrary compiler version.
+
+link { url = "https://github.com/kalandra-lang/kalandra/blob/native/native/README.md", "Native source-build instructions" }
+
+link { url = "https://github.com/kalandra-lang/kalandra/blob/native/docs/design/native-distribution-qualification.md", "Platform and package requirements" }
+
+h2 { "Verify installation" }
+
+link { url = "/docs/getting-started", "Create, check and run the native starter" }

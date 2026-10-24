@@ -1,0 +1,30 @@
+#pragma once
+#include <cstdint>
+
+namespace kalandra::runtime::metal {
+// Performance policy for the measured Apple M2 Max, not a language limit.
+// Callers enable this profile only after validating the complete kernel bundle.
+enum class MatmulLayout { Scalar, Rows2, Quad };
+constexpr MatmulLayout selectMatmulLayout(std::uint32_t rows, std::uint32_t inner,
+                                          std::uint32_t columns) noexcept {
+  const auto cells = std::uint64_t(rows) * columns;
+  if (rows < 2 || inner < 128 || inner > 1025 || cells < 256u * 256u || cells > 513u * 513u)
+    return MatmulLayout::Scalar;
+  if (inner >= 256 && rows >= 128 && columns >= 128 && cells >= 512u * 512u)
+    return MatmulLayout::Quad;
+  return MatmulLayout::Rows2;
+}
+constexpr std::uint64_t matmulWorkItems(MatmulLayout layout, std::uint32_t rows,
+                                        std::uint32_t columns) noexcept {
+  const auto tileRows =
+      layout == MatmulLayout::Scalar ? std::uint64_t(rows) : (std::uint64_t(rows) + 1) / 2;
+  const auto tileColumns =
+      layout == MatmulLayout::Quad ? (std::uint64_t(columns) + 1) / 2 : std::uint64_t(columns);
+  return tileRows * tileColumns;
+}
+constexpr const char *matmulEntryName(MatmulLayout layout) noexcept {
+  return layout == MatmulLayout::Rows2  ? "kalandra_matmul_2x1"
+         : layout == MatmulLayout::Quad ? "kalandra_matmul_2x2"
+                                        : "kalandra_matmul";
+}
+} // namespace kalandra::runtime::metal
